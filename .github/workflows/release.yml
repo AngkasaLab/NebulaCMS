@@ -53,8 +53,6 @@ jobs:
             -x "*.lock" \
             -x "storage/logs/*" \
             -x "storage/framework/cache/data/*" \
-            -x "storage/framework/sessions/*" \
-            -x "storage/framework/views/*" \
             -x "storage/app/public/*" \
             -x "phpunit.xml" \
             -x "vite.config.ts" \
