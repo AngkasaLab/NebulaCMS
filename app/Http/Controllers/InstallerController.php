@@ -22,6 +22,13 @@ class InstallerController extends Controller
     // Step 1: Welcome & Requirements
     // -------------------------------------------------------------------------
 
+    public function setLocale(Request $request, string $locale): RedirectResponse
+    {
+        $request->session()->put('installer_locale', $locale);
+
+        return redirect()->back();
+    }
+
     public function welcome(): View
     {
         $requirements = $this->checkRequirements();
@@ -79,7 +86,7 @@ class InstallerController extends Controller
             return response()->json(['success' => false, 'message' => $error]);
         }
 
-        return response()->json(['success' => true, 'message' => 'Koneksi berhasil!']);
+        return response()->json(['success' => true, 'message' => __('installer.db_connection_success')]);
     }
 
     // -------------------------------------------------------------------------
@@ -186,25 +193,24 @@ class InstallerController extends Controller
     }
 
     /**
-     * AJAX: Jalankan satu sub-langkah instalasi. Klien memanggil berulang sampai `finished` true.
-     * (Satu request untuk semua langkah membuat UI “stuck” di item pertama sampai server selesai.)
+     * AJAX: Run one install sub-step. The client calls repeatedly until `finished` is true.
      */
     public function run(Request $request): JsonResponse
     {
         $token = $request->input('install_token');
         if (! is_string($token) || $token === '') {
-            return response()->json(['error' => 'Permintaan instalasi tidak valid. Muat ulang halaman atau mulai lagi dari langkah admin.'], 422);
+            return response()->json(['error' => __('installer.invalid_install_request')], 422);
         }
 
         $payload = InstallerWizardStore::get($token);
         if (! $payload || ! isset($payload['account'], $payload['database'], $payload['site'])) {
-            return response()->json(['error' => 'Sesi instalasi berakhir atau tidak dikenal. Silakan ulangi dari langkah admin.'], 422);
+            return response()->json(['error' => __('installer.session_expired')], 422);
         }
 
         $cursor = (int) ($payload['cursor'] ?? 0);
 
         if ($cursor < 0 || $cursor > 5) {
-            return response()->json(['error' => 'Instalasi tidak valid. Mulai ulang dari langkah admin.'], 422);
+            return response()->json(['error' => __('installer.invalid_install')], 422);
         }
 
         $db = $payload['database'];
@@ -231,6 +237,7 @@ class InstallerController extends Controller
                     'installer.install_cursor',
                     'installer.wizard_token',
                 ]);
+                $request->session()->flash('installer_just_finished', true);
             }
 
             return response()->json([
@@ -251,12 +258,12 @@ class InstallerController extends Controller
     private function installStepLabel(int $index): string
     {
         return match ($index) {
-            0 => 'Menulis file konfigurasi (.env)',
-            1 => 'Membuat application key',
-            2 => 'Migrasi database & peran akses',
-            3 => 'Membuat akun administrator',
-            4 => 'Mengisi konten contoh',
-            5 => 'Menyelesaikan instalasi',
+            0 => __('installer.install_step_1_label'),
+            1 => __('installer.install_step_2_label'),
+            2 => __('installer.install_step_3_label'),
+            3 => __('installer.install_step_4_label'),
+            4 => __('installer.install_step_5_label'),
+            5 => __('installer.install_step_6_label'),
             default => throw new \InvalidArgumentException('Invalid install step'),
         };
     }
@@ -324,10 +331,14 @@ class InstallerController extends Controller
     // Step 6: Done
     // -------------------------------------------------------------------------
 
-    public function done(): View
+    public function done(Request $request): View|RedirectResponse
     {
         if (! file_exists(storage_path('installed.lock'))) {
-            return view('installer.installing');
+            return redirect()->route('installer.installing');
+        }
+
+        if (! $request->session()->get('installer_just_finished')) {
+            return redirect('/');
         }
 
         return view('installer.done');

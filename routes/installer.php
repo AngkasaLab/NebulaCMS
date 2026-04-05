@@ -2,11 +2,15 @@
 
 use App\Http\Controllers\InstallerController;
 use App\Http\Middleware\ForceFileSession;
+use App\Http\Middleware\SetInstallerLocale;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('install')
-    ->middleware([ForceFileSession::class])
+    ->middleware([ForceFileSession::class, SetInstallerLocale::class])
     ->group(function () {
+        Route::get('/lang/{locale}', [InstallerController::class, 'setLocale'])
+            ->where('locale', 'en|id')
+            ->name('installer.lang');
         Route::get('/', [InstallerController::class, 'welcome'])->name('installer.welcome');
         Route::get('/database', [InstallerController::class, 'database'])->name('installer.database');
         Route::post('/database', [InstallerController::class, 'saveDatabase'])->name('installer.database.save');

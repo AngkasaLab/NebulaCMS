@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -85,6 +85,76 @@
             padding: 0.2rem 0.55rem;
             border: 1px solid var(--ns-dark-border);
             border-radius: 6px;
+        }
+
+        .nsi-header__right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nsi-lang-switcher {
+            position: relative;
+        }
+
+        .nsi-lang-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: transparent;
+            border: 1px solid var(--ns-dark-border);
+            border-radius: 6px;
+            color: var(--ns-dark-muted);
+            font-family: inherit;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            padding: 0.2rem 0.55rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .nsi-lang-btn:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            color: var(--ns-dark-text);
+        }
+
+        .nsi-lang-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            background: var(--ns-dark-2);
+            border: 1px solid var(--ns-dark-border);
+            border-radius: 6px;
+            padding: 0.25rem 0;
+            min-width: 140px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 200;
+        }
+
+        .nsi-lang-dropdown.is-open {
+            display: block;
+        }
+
+        .nsi-lang-dropdown a {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.75rem;
+            font-size: 0.8125rem;
+            color: var(--ns-dark-muted) !important;
+            text-decoration: none !important;
+            transition: background 0.1s, color 0.1s;
+        }
+
+        .nsi-lang-dropdown a:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--ns-dark-text) !important;
+        }
+
+        .nsi-lang-dropdown a.is-active {
+            color: var(--ns-dark-text) !important;
+            font-weight: 550;
         }
 
         .nsi-steps {
@@ -310,6 +380,8 @@
         .nsi-radio {
             position: relative;
             cursor: pointer;
+            display: block;
+            height: 100%;
         }
 
         .nsi-radio input { position: absolute; opacity: 0; pointer-events: none; }
@@ -319,6 +391,8 @@
             border-radius: 6px;
             border: 1px solid var(--ns-border);
             transition: border-color 0.15s;
+            height: 100%;
+            box-sizing: border-box;
         }
 
         .nsi-radio input:checked + .nsi-radio__box {
@@ -524,18 +598,31 @@
 <header class="nsi-header">
     <div class="nsi-header__inner">
         <span class="nsi-logo">NebulaCMS</span>
-        <span class="nsi-header__badge">Installer</span>
+        <div class="nsi-header__right">
+            <div class="nsi-lang-switcher">
+                <button type="button" class="nsi-lang-btn" id="lang-toggle">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    {{ app()->getLocale() === 'id' ? 'ID' : 'EN' }}
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <div class="nsi-lang-dropdown" id="lang-dropdown">
+                    <a href="{{ route('installer.lang', 'en') }}" class="{{ app()->getLocale() === 'en' ? 'is-active' : '' }}">🇺🇸 English</a>
+                    <a href="{{ route('installer.lang', 'id') }}" class="{{ app()->getLocale() === 'id' ? 'is-active' : '' }}">🇮🇩 Bahasa Indonesia</a>
+                </div>
+            </div>
+            <span class="nsi-header__badge">Installer</span>
+        </div>
     </div>
 </header>
 
 @php
     $steps = [
-        1 => 'Persyaratan',
-        2 => 'Database',
-        3 => 'Situs',
-        4 => 'Admin',
-        5 => 'Instal',
-        6 => 'Selesai',
+        1 => __('installer.step_requirements'),
+        2 => __('installer.step_database'),
+        3 => __('installer.step_site'),
+        4 => __('installer.step_admin'),
+        5 => __('installer.step_install'),
+        6 => __('installer.step_done'),
     ];
     $currentStep = $currentStep ?? 1;
 @endphp
@@ -569,6 +656,15 @@
     &copy; {{ date('Y') }} NebulaCMS
 </footer>
 
+<script>
+document.getElementById('lang-toggle')?.addEventListener('click', function (e) {
+    e.stopPropagation();
+    document.getElementById('lang-dropdown').classList.toggle('is-open');
+});
+document.addEventListener('click', function () {
+    document.getElementById('lang-dropdown')?.classList.remove('is-open');
+});
+</script>
 @stack('scripts')
 </body>
 </html>

@@ -2,8 +2,8 @@
 @php $currentStep = 5; @endphp
 
 @section('content')
-<h1>Menginstal NebulaCMS</h1>
-<p class="nsi-main__lead">Harap tunggu, jangan tutup halaman ini.</p>
+<h1>{{ __('installer.installing_title') }}</h1>
+<p class="nsi-main__lead">{{ __('installer.installing_lead') }}</p>
 
 <div class="nsi-progress-bar">
     <div class="nsi-progress-bar__fill" id="progress-bar"></div>
@@ -12,12 +12,12 @@
 <div class="nsi-panel">
     @php
         $installSteps = [
-            'Menulis file konfigurasi',
-            'Membuat application key',
-            'Migrasi database & peran akses',
-            'Membuat akun administrator',
-            'Mengisi konten contoh',
-            'Menyelesaikan instalasi',
+            __('installer.install_step_1'),
+            __('installer.install_step_2'),
+            __('installer.install_step_3'),
+            __('installer.install_step_4'),
+            __('installer.install_step_5'),
+            __('installer.install_step_6'),
         ];
     @endphp
     @foreach($installSteps as $i => $label)
@@ -31,17 +31,17 @@
 </div>
 
 <div id="error-panel" class="nsi-alert nsi-alert--error" style="display: none;">
-    <strong>Instalasi gagal.</strong> <span id="error-message"></span>
-    <br><a href="{{ route('installer.account') }}" style="margin-top: 0.5rem; display: inline-block;">← Kembali dan coba lagi</a>
+    <strong>{{ __('installer.install_failed') }}</strong> <span id="error-message"></span>
+    <br><a href="{{ route('installer.account') }}" style="margin-top: 0.5rem; display: inline-block;">{{ __('installer.install_back_retry') }}</a>
 </div>
 @endsection
 
 @push('scripts')
 <script>
 const totalSteps = 6;
-/** Token penyimpanan wizard (disk); tidak bergantung pada cookie sesi setelah APP_KEY berubah. */
+/** Wizard storage token (disk); does not depend on session cookie after APP_KEY change. */
 const installToken = @json($installToken ?? '');
-/** Indeks langkah berikutnya di server (untuk resume setelah refresh halaman). */
+/** Next step index on the server (for resume after page refresh). */
 const startStep = {{ min(max((int) ($installCursor ?? 0), 0), 5) }};
 
 function setStepState(index, state) {
@@ -100,7 +100,7 @@ async function runInstall() {
             }
 
             if (!data.success) {
-                const msg = data.step?.message || 'Terjadi kesalahan tak terduga.';
+                const msg = data.step?.message || @json(__('installer.unexpected_error'));
                 document.getElementById('error-message').textContent = msg;
                 document.getElementById('error-panel').style.display = 'block';
                 for (let j = 0; j < stepIndex; j++) {
@@ -123,7 +123,7 @@ async function runInstall() {
             stepIndex++;
         }
     } catch (err) {
-        document.getElementById('error-message').textContent = 'Tidak dapat menghubungi server: ' + err.message;
+        document.getElementById('error-message').textContent = @json(__('installer.cannot_reach_server')) + err.message;
         document.getElementById('error-panel').style.display = 'block';
         setStepState(stepIndex, 'error');
     }

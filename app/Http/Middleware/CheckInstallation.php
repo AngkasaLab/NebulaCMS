@@ -20,7 +20,7 @@ class CheckInstallation
             return redirect()->route('installer.welcome');
         }
 
-        if ($isInstalled && $isInstallerRoute) {
+        if ($isInstalled && $isInstallerRoute && ! $request->is('install/done')) {
             return redirect('/');
         }
 
