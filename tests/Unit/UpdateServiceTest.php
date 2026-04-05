@@ -65,6 +65,7 @@ describe('UpdateService::checkForUpdate', function () {
         Http::fake([
             'api.github.com/repos/test/repo/releases/latest' => Http::response([
                 'tag_name' => 'v1.1.0',
+                'html_url' => 'https://github.com/test/repo/releases/tag/v1.1.0',
                 'body' => 'See https://example.com/changelog',
                 'published_at' => '2026-01-01T00:00:00Z',
                 'assets' => [
@@ -78,6 +79,8 @@ describe('UpdateService::checkForUpdate', function () {
         expect($result['available'])->toBeTrue();
         expect($result['latest'])->toBe('1.1.0');
         expect($result['download_url'])->toBe('https://github.com/dl.zip');
+        expect($result['release_url'])->toBe('https://github.com/test/repo/releases/tag/v1.1.0');
+        expect($result['release_notes'])->toContain('changelog');
     });
 
     it('reports not available when already on latest', function () {

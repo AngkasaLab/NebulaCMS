@@ -77,6 +77,37 @@ class UpdateService
     }
 
     /**
+     * Build a short plain-text excerpt from GitHub's release body (Markdown).
+     * The admin UI shows this plus a link to the full release page.
+     */
+    protected function summarizeReleaseBody(string $body): string
+    {
+        $body = trim($body);
+        if ($body === '') {
+            return '';
+        }
+
+        $text = preg_replace('/```[\s\S]*?```/', ' ', $body) ?? $body;
+        $text = preg_replace('/^#{1,6}\s+.+$/m', ' ', $text);
+        $text = preg_replace('/\*\*([^*]+)\*\*/', '$1', $text);
+        $text = preg_replace('/`([^`]+)`/', '$1', $text);
+        $text = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $text);
+        $text = preg_replace('/^\s*[-*+]\s+/m', ' ', $text);
+        $text = preg_replace('/\s+/', ' ', trim($text));
+
+        if ($text === '') {
+            return '';
+        }
+
+        $max = 280;
+        if (mb_strlen($text) <= $max) {
+            return $text;
+        }
+
+        return rtrim(mb_substr($text, 0, $max - 1)).'…';
+    }
+
+    /**
      * Check the GitHub Releases API for a newer version.
      */
     public function checkForUpdate(): array
@@ -115,12 +146,15 @@ class UpdateService
             }
 
             $isNewer = version_compare($latestVersion, $currentVersion, '>');
+            $body = (string) ($release['body'] ?? '');
 
             return [
                 'available' => $isNewer,
                 'current' => $currentVersion,
                 'latest' => $latestVersion,
-                'release_notes' => $release['body'] ?? '',
+                /** Short plain-text excerpt for the admin UI (full notes stay on GitHub). */
+                'release_notes' => $this->summarizeReleaseBody($body),
+                'release_url' => isset($release['html_url']) ? (string) $release['html_url'] : null,
                 'download_url' => $downloadUrl,
                 'published_at' => $release['published_at'] ?? null,
             ];
@@ -272,12 +306,19 @@ class UpdateService
     {
         $tempDir = storage_path('app/temp/update-'.uniqid());
 
+        @set_time_limit(0);
+        @ini_set('max_execution_time', '600');
+
         try {
             File::makeDirectory($tempDir, 0755, true);
 
             // Download the release ZIP
             $zipPath = $tempDir.'/release.zip';
-            $response = Http::timeout(120)->withOptions(['sink' => $zipPath])->get($downloadUrl);
+            $response = Http::timeout(600)->withOptions(['sink' => $zipPath])->get($downloadUrl);
+
+            if (! $response->successful()) {
+                throw new \RuntimeException('Download failed (HTTP '.$response->status().').');
+            }
 
             if (! file_exists($zipPath) || filesize($zipPath) === 0) {
                 throw new \RuntimeException('Failed to download update file.');
@@ -291,7 +332,11 @@ class UpdateService
             if ($zip->open($zipPath) !== true) {
                 throw new \RuntimeException('Could not open downloaded ZIP.');
             }
-            $zip->extractTo($extractDir);
+            if (! $zip->extractTo($extractDir)) {
+                $status = $zip->getStatusString();
+                $zip->close();
+                throw new \RuntimeException('Could not extract update archive'.($status !== '' ? ': '.$status : '').'.');
+            }
             $zip->close();
 
             // Find the root directory inside the extracted ZIP
@@ -318,10 +363,7 @@ class UpdateService
                 }
 
                 if (is_dir($sourcePath)) {
-                    if (File::exists($targetPath)) {
-                        File::deleteDirectory($targetPath);
-                    }
-                    File::copyDirectory($sourcePath, $targetPath);
+                    $this->replaceDirectorySafely($sourcePath, $targetPath);
                 } else {
                     File::copy($sourcePath, $targetPath);
                 }
@@ -344,17 +386,20 @@ class UpdateService
                 'from' => $oldVersion,
                 'to' => $newVersion,
             ];
-        } catch (\Exception $e) {
-            Log::error('Update failed: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Update failed: '.$e->getMessage(), ['exception' => $e]);
 
             return [
                 'success' => false,
                 'message' => 'Update failed: '.$e->getMessage(),
             ];
         } finally {
-            // Clean up temp directory
             if (File::exists($tempDir)) {
-                File::deleteDirectory($tempDir);
+                try {
+                    File::deleteDirectory($tempDir);
+                } catch (\Throwable $e) {
+                    Log::warning('Update temp cleanup failed: '.$e->getMessage(), ['exception' => $e]);
+                }
             }
         }
     }
@@ -393,10 +438,7 @@ class UpdateService
                 }
 
                 if (is_dir($sourcePath)) {
-                    if (File::exists($targetPath)) {
-                        File::deleteDirectory($targetPath);
-                    }
-                    File::copyDirectory($sourcePath, $targetPath);
+                    $this->replaceDirectorySafely($sourcePath, $targetPath);
                 } else {
                     File::copy($sourcePath, $targetPath);
                 }
@@ -417,8 +459,8 @@ class UpdateService
                 'success' => true,
                 'message' => "Rolled back to version {$restoredVersion}.",
             ];
-        } catch (\Exception $e) {
-            Log::error('Rollback failed: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Rollback failed: '.$e->getMessage(), ['exception' => $e]);
 
             return [
                 'success' => false,
@@ -426,7 +468,11 @@ class UpdateService
             ];
         } finally {
             if (File::exists($tempDir)) {
-                File::deleteDirectory($tempDir);
+                try {
+                    File::deleteDirectory($tempDir);
+                } catch (\Throwable $e) {
+                    Log::warning('Rollback temp cleanup failed: '.$e->getMessage(), ['exception' => $e]);
+                }
             }
         }
     }
@@ -475,6 +521,52 @@ class UpdateService
             \Artisan::call('config:clear');
         } catch (\Exception $e) {
             Log::warning('Post-update cache clear failed: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Replace a directory without deleting the live tree until a full copy succeeds.
+     * Copies to a staging directory, renames the old tree aside, then promotes staging.
+     */
+    protected function replaceDirectorySafely(string $sourcePath, string $targetPath): void
+    {
+        if (! is_dir($sourcePath)) {
+            throw new \InvalidArgumentException('replaceDirectorySafely: source must be a directory.');
+        }
+
+        $parent = dirname($targetPath);
+        $base = basename($targetPath);
+        $staging = $parent.'/__nebula_staging_'.$base.'_'.uniqid('', true);
+        $previous = $parent.'/__nebula_previous_'.$base.'_'.uniqid('', true);
+
+        File::copyDirectory($sourcePath, $staging);
+
+        $hadTarget = File::exists($targetPath);
+        if ($hadTarget) {
+            if (! @rename($targetPath, $previous)) {
+                File::deleteDirectory($staging);
+
+                throw new \RuntimeException('Could not stage existing directory for replacement: '.$base);
+            }
+        }
+
+        if (! @rename($staging, $targetPath)) {
+            if ($hadTarget && File::exists($previous)) {
+                @rename($previous, $targetPath);
+            }
+            if (File::exists($staging)) {
+                File::deleteDirectory($staging);
+            }
+
+            throw new \RuntimeException('Could not activate new directory: '.$base);
+        }
+
+        if ($hadTarget && File::exists($previous)) {
+            try {
+                File::deleteDirectory($previous);
+            } catch (\Throwable $e) {
+                Log::warning('Could not remove previous directory after replace: '.$e->getMessage(), ['path' => $previous]);
+            }
         }
     }
 

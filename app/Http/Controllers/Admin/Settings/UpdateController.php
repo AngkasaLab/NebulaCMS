@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Settings;
 use App\Http\Controllers\Controller;
 use App\Services\UpdateService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class UpdateController extends Controller
@@ -85,7 +86,13 @@ class UpdateController extends Controller
         }
 
         // Step 2: Download and apply (URL must match the last successful check in this session)
-        $result = $service->applyUpdate($downloadUrl);
+        try {
+            $result = $service->applyUpdate($downloadUrl);
+        } catch (\Throwable $e) {
+            Log::error('System update apply crashed: '.$e->getMessage(), ['exception' => $e]);
+
+            return back()->with('error', 'Update failed unexpectedly. Check storage/logs/laravel.log. '.$e->getMessage());
+        }
 
         if ($result['success']) {
             session()->forget('pending_update');

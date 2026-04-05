@@ -31,6 +31,7 @@ export interface UpdateCheckResult {
     current: string;
     latest?: string;
     release_notes?: string;
+    release_url?: string | null;
     download_url?: string | null;
     published_at?: string | null;
     error?: string;

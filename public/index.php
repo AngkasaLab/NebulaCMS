@@ -22,6 +22,18 @@ foreach ($nebulaStorageDirs as $nebulaDir) {
     }
 }
 
+// Log PHP fatal errors that occur before Laravel's exception handler runs (otherwise
+// the site returns 500 with nothing in laravel.log — common after partial deploys).
+$nebulaFatalLog = $nebulaBasePath.'/storage/logs/php-fatal.log';
+register_shutdown_function(function () use ($nebulaFatalLog) {
+    $e = error_get_last();
+    if (! $e || ! in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+    $line = sprintf("[%s] %s in %s:%d\n", date('c'), $e['message'], $e['file'] ?? '', $e['line'] ?? 0);
+    @file_put_contents($nebulaFatalLog, $line, FILE_APPEND | LOCK_EX);
+});
+
 // Determine if the application is in maintenance mode...
 if (file_exists($maintenance = $nebulaBasePath.'/storage/framework/maintenance.php')) {
     require $maintenance;

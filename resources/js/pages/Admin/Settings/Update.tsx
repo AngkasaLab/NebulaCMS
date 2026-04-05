@@ -7,7 +7,7 @@ import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem, type SharedData, type UpdateCheckResult } from '@/types';
 import { useState } from 'react';
 import { ReleaseNotesText } from '@/components/release-notes-text';
-import { CheckCircle, Download, AlertTriangle, RotateCcw, Loader2, Shield } from 'lucide-react';
+import { CheckCircle, Download, AlertTriangle, RotateCcw, Loader2, Shield, ExternalLink } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -186,37 +186,56 @@ export default function Update({ currentVersion, backups }: UpdatePageProps) {
                                     </div>
                                 </div>
                             ) : checkResult.available ? (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+                                <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
                                     <div className="flex items-start gap-3">
-                                        <Download className="mt-0.5 h-5 w-5 text-amber-600" />
-                                        <div className="flex-1 space-y-3">
+                                        <Download className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                                        <div className="min-w-0 flex-1 space-y-3">
                                             <div>
-                                                <p className="font-medium text-amber-900 dark:text-amber-100">
-                                                    Update Available — v{checkResult.latest}
+                                                <p className="font-medium text-foreground">
+                                                    Update available — v{checkResult.latest}
                                                 </p>
                                                 {checkResult.published_at && (
-                                                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                                                        Released on {new Date(checkResult.published_at).toLocaleDateString()}
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Released {new Date(checkResult.published_at).toLocaleDateString()}
                                                     </p>
                                                 )}
                                             </div>
 
-                                            {checkResult.release_notes && (
-                                                <div className="rounded border border-amber-300 bg-white/50 p-3 dark:bg-black/20">
-                                                    <p className="mb-1 text-xs font-medium text-amber-800 dark:text-amber-200">Release Notes</p>
-                                                    <ReleaseNotesText
-                                                        text={checkResult.release_notes}
-                                                        className="whitespace-pre-wrap text-sm text-amber-700 dark:text-amber-300"
-                                                    />
+                                            {(checkResult.release_notes || checkResult.release_url) && (
+                                                <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5">
+                                                    <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                                                        What&apos;s new
+                                                    </p>
+                                                    {checkResult.release_notes ? (
+                                                        <ReleaseNotesText
+                                                            text={checkResult.release_notes}
+                                                            className="text-sm leading-relaxed text-foreground"
+                                                        />
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">
+                                                            See GitHub for a summary of changes in this release.
+                                                        </p>
+                                                    )}
+                                                    {checkResult.release_url && (
+                                                        <a
+                                                            href={checkResult.release_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                                                        >
+                                                            <ExternalLink className="h-3.5 w-3.5" />
+                                                            Full release notes on GitHub
+                                                        </a>
+                                                    )}
                                                 </div>
                                             )}
 
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
                                                 <Button onClick={handleApply} disabled={isProcessing}>
                                                     <Shield className="mr-2 h-4 w-4" />
                                                     Update to v{checkResult.latest}
                                                 </Button>
-                                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                <p className="text-xs text-muted-foreground">
                                                     A backup will be created automatically before updating.
                                                 </p>
                                             </div>

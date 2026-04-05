@@ -55,7 +55,10 @@ export interface UpdateCheckResult {
     available: boolean;
     current: string;
     latest?: string;
+    /** Short excerpt only; full Markdown is on GitHub. */
     release_notes?: string;
+    /** GitHub release page URL for full notes and assets. */
+    release_url?: string | null;
     download_url?: string | null;
     published_at?: string | null;
     error?: string;
