@@ -73,7 +73,10 @@ export default function Index({ plugins, uploadSecurity }: Props) {
         if (selectedFile) {
             const formData = new FormData();
             formData.append('plugin', selectedFile);
-            router.post(route('admin.plugins.upload'), formData);
+            router.post(route('admin.plugins.upload'), formData, {
+                forceFormData: true,
+                preserveScroll: true,
+            });
             setIsUploadDialogOpen(false);
             setSelectedFile(null);
             if (fileInputRef.current) {

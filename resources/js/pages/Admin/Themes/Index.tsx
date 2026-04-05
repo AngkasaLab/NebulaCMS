@@ -55,7 +55,10 @@ export default function Index({ themes, uploadSecurity }: Props) {
         if (selectedFile) {
             const formData = new FormData();
             formData.append('theme', selectedFile);
-            router.post(route('admin.themes.upload'), formData);
+            router.post(route('admin.themes.upload'), formData, {
+                forceFormData: true,
+                preserveScroll: true,
+            });
             setIsUploadDialogOpen(false);
             setSelectedFile(null);
             if (fileInputRef.current) {
