@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Support\ContentSearch;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Permission;
@@ -19,8 +20,8 @@ class RoleController extends Controller
     {
         $roles = Role::with('permissions')
             ->withCount('users')
-            ->when(request('search'), function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%");
+            ->when(request()->filled('search'), function ($query) {
+                ContentSearch::applyLikeColumns($query, request()->string('search')->toString(), ['name']);
             })
             ->paginate(10)
             ->withQueryString();

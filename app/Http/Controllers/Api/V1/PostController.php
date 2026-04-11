@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PostResource;
 use App\Models\Post;
+use App\Support\ContentSearch;
 use Illuminate\Http\Request;
 
 class PostController extends Controller
@@ -18,6 +19,9 @@ class PostController extends Controller
 
         $posts = Post::query()
             ->published()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                ContentSearch::applyToPostQuery($query, $request->string('search')->toString());
+            })
             ->with(['category', 'tags', 'user:id,name', 'featuredImage'])
             ->latest('published_at')
             ->paginate($perPage);

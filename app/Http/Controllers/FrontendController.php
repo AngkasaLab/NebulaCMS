@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Post;
 use App\Models\Category;
-use App\Models\Tag;
 use App\Models\Page;
+use App\Models\Post;
+use App\Models\Tag;
 use App\Services\TemplateHierarchy;
+use App\Support\ContentSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 
@@ -52,7 +53,7 @@ class FrontendController extends Controller
         $template = TemplateHierarchy::locateTemplate($templates, app('theme'));
 
         // If no template is found, use fallback
-        if (!$template) {
+        if (! $template) {
             return view('theme::pages.home', $data);
         }
 
@@ -64,7 +65,6 @@ class FrontendController extends Controller
      * Supports filtering by category, tag, and search
      * Using template hierarchy to find the appropriate template
      *
-     * @param Request $request
      * @return \Illuminate\View\View
      */
     public function blog(Request $request)
@@ -81,11 +81,8 @@ class FrontendController extends Controller
                     $q->where('slug', $tag);
                 });
             })
-            ->when($request->search, function ($query, $search) {
-                return $query->where(function ($q) use ($search) {
-                    $q->where('title', 'like', "%{$search}%")
-                        ->orWhere('content', 'like', "%{$search}%");
-                });
+            ->when($request->filled('search'), function ($query) use ($request) {
+                ContentSearch::applyToPostQuery($query, $request->string('search')->toString());
             });
 
         // Apply filter for query posts
@@ -138,7 +135,7 @@ class FrontendController extends Controller
         $template = TemplateHierarchy::locateTemplate($templates, app('theme'));
 
         // If no template is found, use fallback
-        if (!$template) {
+        if (! $template) {
             return view('theme::pages.blog', $data);
         }
 
@@ -149,7 +146,7 @@ class FrontendController extends Controller
      * Displaying single post page
      * Using template hierarchy to find the appropriate template
      *
-     * @param string $slug Slug postingan
+     * @param  string  $slug  Slug postingan
      * @return \Illuminate\View\View
      */
     public function post($slug)
@@ -234,7 +231,7 @@ class FrontendController extends Controller
         $template = TemplateHierarchy::locateTemplate($templates, app('theme'));
 
         // If no template is found, use fallback
-        if (!$template) {
+        if (! $template) {
             return view('theme::pages.post', $data);
         }
 
@@ -245,7 +242,7 @@ class FrontendController extends Controller
      * Displaying static page
      * Using template hierarchy to find the appropriate template
      *
-     * @param string $slug Slug halaman
+     * @param  string  $slug  Slug halaman
      * @return \Illuminate\View\View
      */
     public function page($slug)
@@ -262,7 +259,7 @@ class FrontendController extends Controller
 
         // Get data for view
         $data = [
-            'page' => $page
+            'page' => $page,
         ];
 
         // Apply filter for data
@@ -285,7 +282,7 @@ class FrontendController extends Controller
         $template = TemplateHierarchy::locateTemplate($templates, app('theme'));
 
         // If no template is found, use fallback
-        if (!$template) {
+        if (! $template) {
             return view('theme::pages.page', $data);
         }
 
@@ -297,26 +294,26 @@ class FrontendController extends Controller
      * Uses dynamic theme system and template hierarchy
      * Only shows pages that have specific templates, otherwise returns 404
      *
-     * @param string $page Page slug
+     * @param  string  $page  Page slug
      * @return \Illuminate\View\View
      */
     public function staticPage($page)
     {
         // Security: Validate page parameter to prevent path traversal attacks
-        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $page)) {
+        if (! preg_match('/^[a-zA-Z0-9_-]+$/', $page)) {
             abort(404, 'Invalid page format');
         }
 
         // Get current active theme dynamically instead of hardcoding
         $theme = app('theme');
-        
+
         // Run action before rendering static page
         do_action('before_static_page', $page);
 
         // Prepare data for view
         $data = [
             'page_slug' => $page,
-            'theme' => $theme
+            'theme' => $theme,
         ];
 
         // Apply filter for static page data
@@ -327,7 +324,7 @@ class FrontendController extends Controller
         $templates = [
             "pages.static.{$page}",
             "pages.{$page}",
-            "static.{$page}"
+            "static.{$page}",
         ];
 
         // Apply filter for template hierarchy

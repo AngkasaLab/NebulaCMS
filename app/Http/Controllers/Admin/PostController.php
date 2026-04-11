@@ -11,6 +11,7 @@ use App\Models\Media;
 use App\Models\Post;
 use App\Models\PostRevision;
 use App\Models\Tag;
+use App\Support\ContentSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -35,11 +36,8 @@ class PostController extends Controller
     {
         $query = Post::with(['user', 'category', 'tags', 'featuredImage']);
 
-        // Filter by search term
-        if ($request->has('search')) {
-            $query->where('title', 'like', '%'.$request->search.'%')
-                ->orWhere('excerpt', 'like', '%'.$request->search.'%')
-                ->orWhere('content', 'like', '%'.$request->search.'%');
+        if ($request->filled('search')) {
+            ContentSearch::applyToPostQuery($query, $request->string('search')->toString());
         }
 
         // Filter by status

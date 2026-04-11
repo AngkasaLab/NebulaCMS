@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Page;
+use App\Support\ContentSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -28,10 +29,8 @@ class PageController extends Controller
     {
         $query = Page::with(['user']);
 
-        // Filter by search term
-        if ($request->has('search')) {
-            $query->where('title', 'like', '%' . $request->search . '%')
-                ->orWhere('content', 'like', '%' . $request->search . '%');
+        if ($request->filled('search')) {
+            ContentSearch::applyToPageQuery($query, $request->string('search')->toString());
         }
 
         // Filter by status
@@ -45,8 +44,8 @@ class PageController extends Controller
             'pages' => $pages,
             'filters' => [
                 'search' => $request->input('search', ''),
-                'status' => $request->input('status', 'all')
-            ]
+                'status' => $request->input('status', 'all'),
+            ],
         ]);
     }
 
@@ -95,7 +94,7 @@ class PageController extends Controller
         $page->load(['user']);
 
         return Inertia::render('Admin/Pages/Show', [
-            'page' => $page
+            'page' => $page,
         ]);
     }
 
@@ -165,7 +164,7 @@ class PageController extends Controller
     public function publish(Page $page)
     {
         $page->update([
-            'status' => 'published'
+            'status' => 'published',
         ]);
 
         return back()->with('message', 'Halaman berhasil dipublikasikan.');
@@ -174,7 +173,7 @@ class PageController extends Controller
     public function unpublish(Page $page)
     {
         $page->update([
-            'status' => 'draft'
+            'status' => 'draft',
         ]);
 
         return back()->with('message', 'Halaman berhasil dijadikan draft.');

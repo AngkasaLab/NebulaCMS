@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
+use App\Support\ContentSearch;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -30,9 +31,8 @@ class UserController extends Controller
     public function index()
     {
         $users = User::with('roles')
-            ->when(request('search'), function($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+            ->when(request()->filled('search'), function ($query) {
+                ContentSearch::applyLikeColumns($query, request()->string('search')->toString(), ['name', 'email']);
             })
             ->paginate(10)
             ->withQueryString();

@@ -7,6 +7,7 @@ use App\Exceptions\UploadScanException;
 use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\MediaFolder;
+use App\Support\ContentSearch;
 use App\Support\InertiaUploadSecurity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -51,9 +52,8 @@ class MediaController extends Controller
             $query->where('mime_type', 'like', $request->type.'/%');
         }
 
-        // Filter by search term
-        if ($request->has('search')) {
-            $query->where('name', 'like', '%'.$request->search.'%');
+        if ($request->filled('search')) {
+            ContentSearch::applyLikeColumns($query, $request->string('search')->toString(), ['name']);
         }
 
         $media = $query->paginate(24)->through(function ($item) {
