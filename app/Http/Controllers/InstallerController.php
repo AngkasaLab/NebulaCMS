@@ -459,7 +459,7 @@ class InstallerController extends Controller
     private function checkRequirements(): array
     {
         $phpVersion = phpversion();
-        $phpOk = version_compare($phpVersion, '8.2.0', '>=');
+        $phpOk = version_compare($phpVersion, '8.3.0', '>=');
 
         $extensions = ['pdo', 'pdo_mysql', 'mbstring', 'openssl', 'tokenizer', 'xml', 'ctype', 'json', 'bcmath', 'fileinfo', 'curl', 'gd'];
         $extResults = [];
@@ -477,7 +477,7 @@ class InstallerController extends Controller
         }
 
         return [
-            'php' => ['version' => $phpVersion, 'ok' => $phpOk, 'required' => '8.2.0'],
+            'php' => ['version' => $phpVersion, 'ok' => $phpOk, 'required' => '8.3.0'],
             'extensions' => $extResults,
             'paths' => $pathResults,
         ];

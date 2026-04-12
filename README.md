@@ -51,7 +51,7 @@ NebulaCMS is a modern and open-source Content Management System (CMS) built with
 
 - **Backend:**
   - Laravel 12
-  - PHP 8.2+
+  - PHP 8.3+
   - MySQL/PostgreSQL
 
 - **Frontend:**
