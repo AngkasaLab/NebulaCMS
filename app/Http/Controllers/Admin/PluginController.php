@@ -6,8 +6,10 @@ use App\Contracts\UploadScanner;
 use App\Exceptions\UploadScanException;
 use App\Http\Controllers\Controller;
 use App\Models\Plugin;
+use App\Services\PluginRequirementChecker;
 use App\Services\SecureZipInspector;
 use App\Support\InertiaUploadSecurity;
+use App\Support\PluginHooks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
@@ -15,14 +17,36 @@ use ZipArchive;
 
 class PluginController extends Controller
 {
-    public function __construct()
-    {
+    public function __construct(
+        protected PluginRequirementChecker $requirementChecker,
+    ) {
         $this->middleware('permission:manage plugins');
     }
 
     public function index()
     {
-        $plugins = Plugin::all();
+        $plugins = Plugin::query()
+            ->orderBy('name')
+            ->get()
+            ->map(function (Plugin $plugin) {
+                $check = $this->requirementChecker->check($plugin);
+
+                return [
+                    'id' => $plugin->id,
+                    'name' => $plugin->name,
+                    'slug' => $plugin->slug,
+                    'folder_name' => $plugin->folder_name,
+                    'description' => $plugin->description,
+                    'version' => $plugin->version,
+                    'author' => $plugin->author,
+                    'author_url' => $plugin->author_url,
+                    'is_active' => $plugin->is_active,
+                    'settings' => $plugin->settings,
+                    'requires' => $plugin->requires,
+                    'compatibility' => $check,
+                    'settings_schema' => $plugin->getSettingsSchemaFromDisk(),
+                ];
+            });
 
         return Inertia::render('Admin/Plugins/Index', [
             'plugins' => $plugins,
@@ -36,16 +60,78 @@ class PluginController extends Controller
             return redirect()->back()->with('error', 'Plugin structure is invalid. Missing index.php file.');
         }
 
-        $plugin->activate();
+        $check = $this->requirementChecker->check($plugin);
+        if (! $check['ok']) {
+            return redirect()->back()->with('error', implode(' ', $check['errors']));
+        }
 
-        return redirect()->back()->with('success', 'Plugin activated successfully');
+        $plugin->activate();
+        $fresh = $plugin->fresh();
+
+        if (function_exists('activity') && auth()->check()) {
+            activity()
+                ->causedBy(auth()->user())
+                ->withProperties(['plugin_id' => $fresh->id, 'slug' => $fresh->slug])
+                ->log('plugin_activated');
+        }
+
+        do_action(PluginHooks::PLUGIN_ACTIVATE, $fresh);
+
+        $msg = 'Plugin activated successfully';
+        if ($check['warnings'] !== []) {
+            return redirect()->back()->with('success', $msg)->with('warning', implode(' ', $check['warnings']));
+        }
+
+        return redirect()->back()->with('success', $msg);
     }
 
     public function deactivate(Plugin $plugin)
     {
         $plugin->deactivate();
+        $fresh = $plugin->fresh();
+
+        do_action(PluginHooks::PLUGIN_DEACTIVATE, $fresh);
+
+        if (function_exists('activity') && auth()->check()) {
+            activity()
+                ->causedBy(auth()->user())
+                ->withProperties(['plugin_id' => $fresh->id, 'slug' => $fresh->slug])
+                ->log('plugin_deactivated');
+        }
 
         return redirect()->back()->with('success', 'Plugin deactivated successfully');
+    }
+
+    public function updateSettings(Request $request, Plugin $plugin)
+    {
+        $schema = $plugin->getSettingsSchemaFromDisk();
+        if (! $schema || empty($schema['fields']) || ! is_array($schema['fields'])) {
+            return redirect()->back()->with('error', 'This plugin does not define settings_schema.fields in plugin.json.');
+        }
+
+        $rules = [];
+        foreach ($schema['fields'] as $field) {
+            if (! is_array($field) || empty($field['key']) || ! is_string($field['key'])) {
+                continue;
+            }
+            $key = $field['key'];
+            $type = $field['type'] ?? 'text';
+            $rules[$key] = match ($type) {
+                'boolean', 'bool' => ['nullable', 'boolean'],
+                'number', 'integer', 'int' => ['nullable', 'numeric'],
+                default => ['nullable', 'string', 'max:65535'],
+            };
+        }
+
+        if ($rules === []) {
+            return redirect()->back()->with('error', 'Invalid settings schema: no field keys.');
+        }
+
+        $validated = $request->validate($rules);
+        $merged = array_merge($plugin->settings ?? [], $validated);
+        $plugin->update(['settings' => $merged]);
+
+        return redirect()->back()->with('success', 'Plugin settings saved.');
     }
 
     public function scan()
@@ -60,6 +146,7 @@ class PluginController extends Controller
 
         $directories = File::directories($pluginsPath);
         $registered = 0;
+        $incompatible = 0;
 
         foreach ($directories as $directory) {
             $folderName = basename($directory);
@@ -72,7 +159,7 @@ class PluginController extends Controller
                     continue;
                 }
 
-                Plugin::updateOrCreate(
+                $model = Plugin::updateOrCreate(
                     ['folder_name' => $folderName],
                     [
                         'name' => $config['name'],
@@ -86,11 +173,22 @@ class PluginController extends Controller
                     ]
                 );
 
+                if (! $this->requirementChecker->check($model)['ok']) {
+                    $incompatible++;
+                }
+
                 $registered++;
             }
         }
 
-        return redirect()->back()->with('success', "Plugins scanned successfully. {$registered} plugin(s) found.");
+        $message = "Plugins scanned successfully. {$registered} plugin(s) found.";
+        if ($incompatible > 0) {
+            return redirect()->back()
+                ->with('success', $message)
+                ->with('warning', "{$incompatible} plugin(s) have unmet requirements and cannot be activated until resolved.");
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function destroy(Plugin $plugin)
@@ -100,13 +198,25 @@ class PluginController extends Controller
             return redirect()->back()->with('error', 'Cannot delete active plugin. Please deactivate it first.');
         }
 
-        // Delete plugin folder if exists
         $pluginPath = base_path("plugins/{$plugin->folder_name}");
+        $uninstall = $pluginPath.'/uninstall.php';
+
+        if (File::exists($uninstall) && File::isFile($uninstall)) {
+            try {
+                putenv('NEBULA_PLUGIN_UNINSTALL=1');
+                require $uninstall;
+                putenv('NEBULA_PLUGIN_UNINSTALL');
+            } catch (\Throwable $e) {
+                \Log::error('Plugin uninstall script failed: '.$e->getMessage());
+
+                return redirect()->back()->with('error', 'Uninstall script failed: '.$e->getMessage());
+            }
+        }
+
         if (File::exists($pluginPath)) {
             File::deleteDirectory($pluginPath);
         }
 
-        // Delete from database
         $plugin->delete();
 
         return redirect()->back()->with('success', 'Plugin deleted successfully');
@@ -130,8 +240,11 @@ class PluginController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
         }
 
+        $inspector = app(SecureZipInspector::class);
+
         try {
-            app(SecureZipInspector::class)->assertSafeArchive($file->getRealPath());
+            $inspector->assertSafeArchive($file->getRealPath());
+            $inspector->assertPluginZipExtensions($file->getRealPath());
         } catch (\InvalidArgumentException $e) {
             return redirect()->back()->with('error', __('Invalid ZIP: :msg', ['msg' => $e->getMessage()]));
         }

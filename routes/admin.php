@@ -129,6 +129,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\Admin\PluginController::class, 'index'])->name('admin.plugins.index');
         Route::post('/{plugin}/activate', [\App\Http\Controllers\Admin\PluginController::class, 'activate'])->name('admin.plugins.activate');
         Route::post('/{plugin}/deactivate', [\App\Http\Controllers\Admin\PluginController::class, 'deactivate'])->name('admin.plugins.deactivate');
+        Route::patch('/{plugin}/settings', [\App\Http\Controllers\Admin\PluginController::class, 'updateSettings'])->name('admin.plugins.settings.update');
         Route::post('/scan', [\App\Http\Controllers\Admin\PluginController::class, 'scan'])->name('admin.plugins.scan');
         Route::delete('/{plugin}', [\App\Http\Controllers\Admin\PluginController::class, 'destroy'])->name('admin.plugins.destroy');
         Route::post('/upload', [\App\Http\Controllers\Admin\PluginController::class, 'upload'])->name('admin.plugins.upload');

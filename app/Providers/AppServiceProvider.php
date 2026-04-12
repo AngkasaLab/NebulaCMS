@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Contracts\UploadScanner;
+use App\Services\PluginRequirementChecker;
+use App\Services\PluginRouteRegistrar;
 use App\Services\UploadScan\ClamAvUploadScanner;
 use App\Services\UploadScan\NullUploadScanner;
 use Illuminate\Auth\Events\Login;
@@ -35,6 +37,10 @@ class AppServiceProvider extends ServiceProvider
 
             return new NullUploadScanner;
         });
+
+        $this->app->singleton(PluginRequirementChecker::class, fn () => new PluginRequirementChecker);
+
+        $this->app->singleton(PluginRouteRegistrar::class, fn () => new PluginRouteRegistrar);
     }
 
     /**

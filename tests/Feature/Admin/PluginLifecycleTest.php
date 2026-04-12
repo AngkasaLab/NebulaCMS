@@ -178,6 +178,92 @@ it('menolak hapus plugin yang masih aktif', function () {
     }
 });
 
+it('menolak aktivasi jika requires cms_version tidak terpenuhi', function () {
+    $user = User::factory()->create();
+    $user->assignRole('Admin');
+
+    $prev = config('nebula.version');
+    config(['nebula.version' => '0.1.0']);
+
+    $folder = '__pl_bad_req_'.uniqid();
+    $path = base_path("plugins/{$folder}");
+    File::makeDirectory($path, 0755, true);
+    File::put($path.'/plugin.json', json_encode([
+        'name' => 'Bad Req',
+        'slug' => $folder,
+        'version' => '1.0.0',
+        'requires' => ['cms_version' => '^1.0.0'],
+    ]));
+    File::put($path.'/index.php', "<?php\n");
+
+    $plugin = Plugin::create([
+        'name' => 'Bad Req',
+        'slug' => $folder,
+        'folder_name' => $folder,
+        'version' => '1.0.0',
+        'is_active' => false,
+        'requires' => ['cms_version' => '^1.0.0'],
+    ]);
+
+    try {
+        $this->actingAs($user)
+            ->post(route('admin.plugins.activate', $plugin))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        expect($plugin->fresh()->is_active)->toBeFalse();
+    } finally {
+        config(['nebula.version' => $prev]);
+        Plugin::where('folder_name', $folder)->delete();
+        if (File::exists($path)) {
+            File::deleteDirectory($path);
+        }
+    }
+});
+
+it('menjalankan uninstall.php sebelum menghapus folder', function () {
+    $user = User::factory()->create();
+    $user->assignRole('Admin');
+
+    $folder = '__pl_uninstall_'.uniqid();
+    $path = base_path("plugins/{$folder}");
+    $marker = storage_path('app/plugin_uninstall_test_'.uniqid());
+    File::makeDirectory($path, 0755, true);
+    File::put($path.'/plugin.json', json_encode([
+        'name' => 'Uninstall PL',
+        'slug' => $folder,
+        'version' => '1.0.0',
+    ]));
+    File::put($path.'/index.php', "<?php\n");
+    File::put($path.'/uninstall.php', "<?php\nfile_put_contents(".var_export($marker, true).", 'ok');\n");
+
+    $plugin = Plugin::create([
+        'name' => 'Uninstall PL',
+        'slug' => $folder,
+        'folder_name' => $folder,
+        'version' => '1.0.0',
+        'is_active' => false,
+    ]);
+
+    try {
+        $this->actingAs($user)
+            ->delete(route('admin.plugins.destroy', $plugin))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        expect(File::exists($marker))->toBeTrue();
+        expect(File::exists($path))->toBeFalse();
+    } finally {
+        if (File::exists($marker)) {
+            unlink($marker);
+        }
+        Plugin::where('folder_name', $folder)->delete();
+        if (File::exists($path)) {
+            File::deleteDirectory($path);
+        }
+    }
+});
+
 it('menghapus plugin tidak aktif beserta foldernya', function () {
     $user = User::factory()->create();
     $user->assignRole('Admin');

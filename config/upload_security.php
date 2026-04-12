@@ -58,6 +58,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Plugin ZIP: allowed file extensions (after safe path checks)
+    |--------------------------------------------------------------------------
+    |
+    | Blocks unexpected binaries inside plugin archives. Entries under __MACOSX/
+    | or ending in .DS_Store are skipped.
+    |
+    */
+
+    'plugin_zip_allowed_extensions' => [
+        'php', 'json', 'md', 'txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx',
+        'blade.php', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'woff', 'woff2', 'ttf', 'eot',
+        'map', 'xml', 'yml', 'yaml', 'dist', 'lock', 'html', 'htm', 'vue',
+    ],
+
+    'plugin_zip_allowed_extensionless_names' => [
+        'LICENSE', 'COPYING', 'README', 'CHANGELOG', 'Makefile',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Optional malware scanning (ClamAV)
     |--------------------------------------------------------------------------
     |

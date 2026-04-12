@@ -98,6 +98,37 @@ describe('upload plugin (ZIP)', function () {
         }
     });
 
+    it('gagal jika ZIP berisi ekstensi yang tidak diizinkan', function () {
+        $user = User::factory()->create();
+        $user->assignRole('Admin');
+
+        $slug = 'zip-bad-'.uniqid();
+        $pluginJson = json_encode([
+            'name' => 'Bad Plugin',
+            'slug' => $slug,
+            'version' => '1.0.0',
+        ]);
+
+        $zipPath = ZipTestHelper::createZipFile([
+            'plugin.json' => $pluginJson,
+            'index.php' => "<?php\n",
+            'malware.exe' => 'MZ',
+        ]);
+
+        try {
+            $upload = new UploadedFile($zipPath, 'plugin.zip', 'application/zip', null, true);
+
+            $this->actingAs($user)
+                ->post(route('admin.plugins.upload'), ['plugin' => $upload])
+                ->assertRedirect()
+                ->assertSessionHas('error');
+        } finally {
+            if (file_exists($zipPath)) {
+                unlink($zipPath);
+            }
+        }
+    });
+
     it('berhasil mengunggah plugin ZIP valid', function () {
         $user = User::factory()->create();
         $user->assignRole('Admin');

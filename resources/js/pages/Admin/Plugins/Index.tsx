@@ -2,23 +2,46 @@ import { Head, router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Plus, Upload, Puzzle, Power, PowerOff, Trash2 } from 'lucide-react';
+import { FileText, Plus, Upload, Puzzle, Power, PowerOff, Trash2, Settings, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { UploadSecurityExtensionCallout, type ExtensionUploadSecurity } from '@/components/upload-security-callout';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+interface SettingsField {
+    key: string;
+    label?: string;
+    type?: string;
+    default?: unknown;
+}
+
+interface SettingsSchema {
+    fields: SettingsField[];
+}
+
+interface Compatibility {
+    ok: boolean;
+    errors: string[];
+    warnings: string[];
+}
 
 interface Plugin {
     id: number;
     name: string;
     slug: string;
+    folder_name: string;
     description: string | null;
     version: string;
     author: string | null;
     author_url: string | null;
     is_active: boolean;
+    settings: Record<string, unknown> | null;
+    requires: Record<string, unknown> | null;
+    compatibility: Compatibility;
+    settings_schema: SettingsSchema | null;
 }
 
 interface Props {
@@ -42,6 +65,8 @@ export default function Index({ plugins, uploadSecurity }: Props) {
     const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [settingsPlugin, setSettingsPlugin] = useState<Plugin | null>(null);
+    const [settingsForm, setSettingsForm] = useState<Record<string, unknown>>({});
 
     const handleScan = () => {
         router.post(route('admin.plugins.scan'));
@@ -83,6 +108,32 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                 fileInputRef.current.value = '';
             }
         }
+    };
+
+    const openSettings = (plugin: Plugin) => {
+        setSettingsPlugin(plugin);
+        const initial: Record<string, unknown> = {};
+        const fields = plugin.settings_schema?.fields ?? [];
+        for (const f of fields) {
+            if (!f.key) continue;
+            const v = plugin.settings?.[f.key];
+            if (v !== undefined && v !== null) {
+                initial[f.key] = v;
+            } else if (f.default !== undefined) {
+                initial[f.key] = f.default;
+            } else {
+                initial[f.key] = f.type === 'boolean' || f.type === 'bool' ? false : '';
+            }
+        }
+        setSettingsForm(initial);
+    };
+
+    const handleSaveSettings = () => {
+        if (!settingsPlugin) return;
+        router.patch(route('admin.plugins.settings.update', settingsPlugin.id), settingsForm as Record<string, string | number | boolean>, {
+            preserveScroll: true,
+            onSuccess: () => setSettingsPlugin(null),
+        });
     };
 
     return (
@@ -144,7 +195,7 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                             </Button>
                         </div>
                     </div>
-                    <p className="text-muted-foreground">Extend your site's functionality with plugins.</p>
+                    <p className="text-muted-foreground">Extend your site&apos;s functionality with plugins.</p>
                     <div className="mt-3 w-full">
                         <UploadSecurityExtensionCallout data={uploadSecurity} />
                     </div>
@@ -173,12 +224,12 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                             {plugins.map((plugin) => (
                                 <Card key={plugin.id} className="overflow-hidden">
                                     <CardHeader>
-                                        <CardTitle className="flex items-center justify-between">
-                                            {plugin.name}
+                                        <CardTitle className="flex items-center justify-between gap-2">
+                                            <span className="truncate">{plugin.name}</span>
                                             {plugin.is_active ? (
-                                                <Badge variant="default" className="bg-green-500">Active</Badge>
+                                                <Badge variant="default" className="bg-green-500 shrink-0">Active</Badge>
                                             ) : (
-                                                <Badge variant="secondary">Inactive</Badge>
+                                                <Badge variant="secondary" className="shrink-0">Inactive</Badge>
                                             )}
                                         </CardTitle>
                                         <CardDescription>
@@ -197,17 +248,44 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                                             )}
                                         </CardDescription>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="space-y-3">
                                         <p className="text-sm text-muted-foreground">
                                             {plugin.description || 'No description available'}
                                         </p>
+                                        {!plugin.compatibility.ok && (
+                                            <Alert variant="destructive">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <AlertTitle>Requirements not met</AlertTitle>
+                                                <AlertDescription>
+                                                    <ul className="list-disc pl-4 space-y-1">
+                                                        {plugin.compatibility.errors.map((e) => (
+                                                            <li key={e}>{e}</li>
+                                                        ))}
+                                                    </ul>
+                                                </AlertDescription>
+                                            </Alert>
+                                        )}
+                                        {plugin.compatibility.ok && plugin.compatibility.warnings.length > 0 && (
+                                            <Alert>
+                                                <AlertTitle>Notice</AlertTitle>
+                                                <AlertDescription>
+                                                    {plugin.compatibility.warnings.join(' ')}
+                                                </AlertDescription>
+                                            </Alert>
+                                        )}
                                     </CardContent>
-                                    <CardFooter className="flex gap-2">
+                                    <CardFooter className="flex flex-wrap gap-2">
+                                        {plugin.settings_schema?.fields?.length ? (
+                                            <Button variant="outline" size="sm" onClick={() => openSettings(plugin)}>
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                Settings
+                                            </Button>
+                                        ) : null}
                                         {plugin.is_active ? (
                                             <Button
                                                 variant="outline"
                                                 onClick={() => handleDeactivate(plugin)}
-                                                className="flex-1"
+                                                className="flex-1 min-w-[120px]"
                                             >
                                                 <PowerOff className="mr-2 h-4 w-4" />
                                                 Deactivate
@@ -217,7 +295,8 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                                                 <Button
                                                     variant="default"
                                                     onClick={() => handleActivate(plugin)}
-                                                    className="flex-1"
+                                                    className="flex-1 min-w-[120px]"
+                                                    disabled={!plugin.compatibility.ok}
                                                 >
                                                     <Power className="mr-2 h-4 w-4" />
                                                     Activate
@@ -235,7 +314,7 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                                                         <DialogHeader>
                                                             <DialogTitle>Delete Plugin</DialogTitle>
                                                             <DialogDescription>
-                                                                Are you sure you want to delete "{plugin.name}"? This action cannot be undone.
+                                                                Are you sure you want to delete &quot;{plugin.name}&quot;? This action cannot be undone.
                                                                 The plugin files will be permanently removed from the server.
                                                             </DialogDescription>
                                                         </DialogHeader>
@@ -258,6 +337,62 @@ export default function Index({ plugins, uploadSecurity }: Props) {
                     )}
                 </div>
             </div>
+
+            <Dialog open={settingsPlugin !== null} onOpenChange={(open) => !open && setSettingsPlugin(null)}>
+                <DialogContent className="sm:max-w-md">
+                    {settingsPlugin && settingsPlugin.settings_schema?.fields?.length ? (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>{settingsPlugin.name} settings</DialogTitle>
+                                <DialogDescription>Values are stored as JSON on the plugin record.</DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-2">
+                                {(settingsPlugin.settings_schema?.fields ?? []).map((field) => {
+                                    const t = field.type ?? 'text';
+                                    if (t === 'boolean' || t === 'bool') {
+                                        return (
+                                            <div key={field.key} className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id={`pf-${settingsPlugin.id}-${field.key}`}
+                                                    checked={Boolean(settingsForm[field.key])}
+                                                    onCheckedChange={(c) =>
+                                                        setSettingsForm((s) => ({ ...s, [field.key]: c === true }))
+                                                    }
+                                                />
+                                                <Label htmlFor={`pf-${settingsPlugin.id}-${field.key}`}>{field.label ?? field.key}</Label>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div key={field.key} className="grid gap-2">
+                                            <Label htmlFor={`pf-${settingsPlugin.id}-${field.key}`}>{field.label ?? field.key}</Label>
+                                            <Input
+                                                id={`pf-${settingsPlugin.id}-${field.key}`}
+                                                type={t === 'number' || t === 'integer' || t === 'int' ? 'number' : 'text'}
+                                                value={String(settingsForm[field.key] ?? '')}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    setSettingsForm((s) => ({
+                                                        ...s,
+                                                        [field.key]:
+                                                            t === 'number' || t === 'integer' || t === 'int'
+                                                                ? v === '' ? '' : Number(v)
+                                                                : v,
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setSettingsPlugin(null)}>Cancel</Button>
+                                <Button onClick={handleSaveSettings}>Save</Button>
+                            </DialogFooter>
+                        </>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

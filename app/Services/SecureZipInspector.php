@@ -64,4 +64,64 @@ class SecureZipInspector
             throw new InvalidArgumentException('ZIP contains absolute paths.');
         }
     }
+
+    /**
+     * Enforce allowed extensions for plugin ZIP uploads (in addition to assertSafeArchive).
+     *
+     * @throws InvalidArgumentException
+     */
+    public function assertPluginZipExtensions(string $zipPath): void
+    {
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath) !== true) {
+            throw new InvalidArgumentException('Cannot open ZIP archive.');
+        }
+
+        $allowed = array_map('strtolower', config('upload_security.plugin_zip_allowed_extensions', []));
+        $allowedNames = array_map('strtolower', config('upload_security.plugin_zip_allowed_extensionless_names', []));
+
+        try {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if ($name === false) {
+                    throw new InvalidArgumentException('Invalid ZIP entry name.');
+                }
+
+                if (str_starts_with($name, '__MACOSX/') || str_ends_with($name, '.DS_Store')) {
+                    continue;
+                }
+
+                $base = basename($name);
+                if ($base === '' || str_ends_with($name, '/')) {
+                    continue;
+                }
+
+                $lowerBase = strtolower($base);
+
+                if (str_contains($lowerBase, '..')) {
+                    throw new InvalidArgumentException('ZIP contains invalid path segments.');
+                }
+
+                if (! str_contains($base, '.')) {
+                    if (in_array($lowerBase, $allowedNames, true)) {
+                        continue;
+                    }
+
+                    throw new InvalidArgumentException("ZIP entry \"{$name}\" has no allowed extension.");
+                }
+
+                if (str_ends_with($lowerBase, '.blade.php')) {
+                    $ext = 'blade.php';
+                } else {
+                    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                }
+
+                if ($ext === '' || ! in_array($ext, $allowed, true)) {
+                    throw new InvalidArgumentException("ZIP entry \"{$name}\" uses a disallowed file type.");
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+    }
 }
