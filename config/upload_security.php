@@ -78,6 +78,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Theme ZIP: allowed file extensions (after safe path checks)
+    |--------------------------------------------------------------------------
+    */
+
+    'theme_zip_allowed_extensions' => [
+        'php', 'json', 'md', 'txt', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx',
+        'blade.php', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'woff', 'woff2', 'ttf', 'eot',
+        'map', 'xml', 'yml', 'yaml', 'dist', 'lock', 'html', 'htm', 'vue',
+    ],
+
+    'theme_zip_allowed_extensionless_names' => [
+        'LICENSE', 'COPYING', 'README', 'CHANGELOG', 'Makefile',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Optional malware scanning (ClamAV)
     |--------------------------------------------------------------------------
     |

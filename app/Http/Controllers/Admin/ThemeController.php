@@ -6,6 +6,8 @@ use App\Contracts\UploadScanner;
 use App\Exceptions\UploadScanException;
 use App\Http\Controllers\Controller;
 use App\Models\Theme;
+use App\Services\ThemeRequirementChecker;
+use App\Support\ThemeHooks;
 use App\Services\SecureZipInspector;
 use App\Support\InertiaUploadSecurity;
 use Illuminate\Http\Request;
@@ -15,8 +17,9 @@ use ZipArchive;
 
 class ThemeController extends Controller
 {
-    public function __construct()
-    {
+    public function __construct(
+        protected ThemeRequirementChecker $requirementChecker
+    ) {
         $this->middleware('permission:manage themes');
     }
 
@@ -28,7 +31,23 @@ class ThemeController extends Controller
                 $theme->preview_url = asset("themes/{$theme->folder_name}/{$theme->preview}");
             }
 
-            return $theme;
+            $check = $this->requirementChecker->check($theme);
+
+            return [
+                'id' => $theme->id,
+                'name' => $theme->name,
+                'slug' => $theme->slug,
+                'folder_name' => $theme->folder_name,
+                'description' => $theme->description,
+                'version' => $theme->version,
+                'author' => $theme->author,
+                'is_active' => $theme->is_active,
+                'settings' => $theme->settings,
+                'preview_url' => $theme->preview_url,
+                'has_preview' => $theme->has_preview,
+                'compatibility' => $check,
+                'settings_schema' => $theme->getSettingsSchemaFromDisk(),
+            ];
         });
 
         return Inertia::render('Admin/Themes/Index', [
@@ -39,15 +58,37 @@ class ThemeController extends Controller
 
     public function activate(Theme $theme)
     {
+        if (! $theme->hasValidStructure()) {
+            return redirect()->back()->with('error', 'Theme structure is invalid. Missing theme.json file.');
+        }
+
+        $check = $this->requirementChecker->check($theme);
+        if (! $check['ok']) {
+            return redirect()->back()->with('error', implode(' ', $check['errors']));
+        }
+
         do_action('theme.before_activate', $theme);
 
         $theme->activate();
+        $fresh = $theme->fresh();
 
-        do_action('theme.after_activate', $theme->fresh());
+        if (function_exists('activity') && auth()->check()) {
+            activity()
+                ->causedBy(auth()->user())
+                ->withProperties(['theme_id' => $fresh->id, 'slug' => $fresh->slug])
+                ->log('theme_activated');
+        }
 
-        $this->publishAssets($theme);
+        do_action('theme.after_activate', $fresh);
 
-        return redirect()->back()->with('success', 'Theme activated successfully');
+        $this->publishAssets($fresh);
+
+        $msg = 'Theme activated successfully';
+        if ($check['warnings'] !== []) {
+            return redirect()->back()->with('success', $msg)->with('warning', implode(' ', $check['warnings']));
+        }
+
+        return redirect()->back()->with('success', $msg);
     }
 
     public function scan()
@@ -62,6 +103,7 @@ class ThemeController extends Controller
 
         $directories = File::directories($themesPath);
         $registered = 0;
+        $incompatible = 0;
 
         foreach ($directories as $directory) {
             $folderName = basename($directory);
@@ -77,7 +119,7 @@ class ThemeController extends Controller
                 continue;
             }
 
-            Theme::updateOrCreate(
+            $model = Theme::updateOrCreate(
                 ['folder_name' => $folderName],
                 [
                     'name' => $config['name'],
@@ -90,10 +132,21 @@ class ThemeController extends Controller
                 ]
             );
 
+            if (! $this->requirementChecker->check($model)['ok']) {
+                $incompatible++;
+            }
+
             $registered++;
         }
 
-        return redirect()->back()->with('success', "Themes scanned successfully. {$registered} theme(s) registered.");
+        $message = "Themes scanned successfully. {$registered} theme(s) registered.";
+        if ($incompatible > 0) {
+            return redirect()->back()
+                ->with('success', $message)
+                ->with('warning', "{$incompatible} theme(s) have unmet requirements and cannot be activated until resolved.");
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function destroy(Theme $theme)
@@ -101,6 +154,21 @@ class ThemeController extends Controller
         // Jangan izinkan menghapus tema yang sedang aktif
         if ($theme->is_active) {
             return redirect()->back()->with('error', 'Cannot delete active theme');
+        }
+
+        $themePath = base_path("themes/{$theme->folder_name}");
+        $uninstall = $themePath.'/uninstall.php';
+
+        if (File::exists($uninstall) && File::isFile($uninstall)) {
+            try {
+                putenv('NEBULA_THEME_UNINSTALL=1');
+                require $uninstall;
+                putenv('NEBULA_THEME_UNINSTALL');
+            } catch (\Throwable $e) {
+                \Log::error('Theme uninstall script failed: '.$e->getMessage());
+
+                return redirect()->back()->with('error', 'Uninstall script failed: '.$e->getMessage());
+            }
         }
 
         do_action('theme.before_delete', $theme);
@@ -129,6 +197,13 @@ class ThemeController extends Controller
 
         do_action('theme.after_delete', $snapshot);
 
+        if (function_exists('activity') && auth()->check()) {
+            activity()
+                ->causedBy(auth()->user())
+                ->withProperties(['theme_id' => $snapshot['id'], 'slug' => $snapshot['slug']])
+                ->log('theme_deleted');
+        }
+
         return redirect()->back()->with('success', 'Theme deleted successfully');
     }
 
@@ -152,6 +227,7 @@ class ThemeController extends Controller
 
         try {
             app(SecureZipInspector::class)->assertSafeArchive($file->getRealPath());
+            app(SecureZipInspector::class)->assertThemeZipExtensions($file->getRealPath());
         } catch (\InvalidArgumentException $e) {
             return redirect()->back()->with('error', __('Invalid ZIP: :msg', ['msg' => $e->getMessage()]));
         }
@@ -234,6 +310,38 @@ class ThemeController extends Controller
                 File::deleteDirectory($tempPath);
             }
         }
+    }
+
+    public function updateSettings(Request $request, Theme $theme)
+    {
+        $schema = $theme->getSettingsSchemaFromDisk();
+        if (! $schema || empty($schema['fields']) || ! is_array($schema['fields'])) {
+            return redirect()->back()->with('error', 'This theme does not define settings_schema.fields in theme.json.');
+        }
+
+        $rules = [];
+        foreach ($schema['fields'] as $field) {
+            if (! is_array($field) || empty($field['key']) || ! is_string($field['key'])) {
+                continue;
+            }
+            $key = $field['key'];
+            $type = $field['type'] ?? 'text';
+            $rules[$key] = match ($type) {
+                'boolean', 'bool' => ['nullable', 'boolean'],
+                'number', 'integer', 'int' => ['nullable', 'numeric'],
+                default => ['nullable', 'string', 'max:65535'],
+            };
+        }
+
+        if ($rules === []) {
+            return redirect()->back()->with('error', 'Invalid settings schema: no field keys.');
+        }
+
+        $validated = $request->validate($rules);
+        $merged = array_merge($theme->settings ?? [], $validated);
+        $theme->update(['settings' => $merged]);
+
+        return redirect()->back()->with('success', 'Theme settings saved.');
     }
 
     /**

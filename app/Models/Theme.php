@@ -130,4 +130,37 @@ class Theme extends Model
 
         return apply_filters('theme.parent_view_path', "parent_theme::{$view}", $parentTheme, $view);
     }
+
+    /**
+     * Check if theme structure is valid (has theme.json).
+     */
+    public function hasValidStructure(): bool
+    {
+        $themeJsonPath = base_path("themes/{$this->folder_name}/theme.json");
+        return File::exists($themeJsonPath);
+    }
+
+    /**
+     * Get settings schema directly from theme.json.
+     */
+    public function getSettingsSchemaFromDisk(): ?array
+    {
+        $jsonPath = base_path("themes/{$this->folder_name}/theme.json");
+
+        if (! file_exists($jsonPath)) {
+            return null;
+        }
+
+        $content = file_get_contents($jsonPath);
+        if ($content === false) {
+            return null;
+        }
+
+        $decoded = json_decode($content, true);
+        if (! is_array($decoded) || ! isset($decoded['settings_schema'])) {
+            return null;
+        }
+
+        return $decoded['settings_schema'];
+    }
 }
