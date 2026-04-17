@@ -35,7 +35,7 @@ class Page extends Model
         return LogOptions::defaults()
             ->logOnly(['title', 'slug', 'status', 'user_id'])
             ->logOnlyDirty()
-            ->dontLogEmptyChanges()
+            ->submitEmptyLogs(false)
             ->useLogName('page');
     }
 

@@ -40,7 +40,7 @@ class Post extends Model
         return LogOptions::defaults()
             ->logOnly(['title', 'slug', 'status', 'user_id', 'category_id'])
             ->logOnlyDirty()
-            ->dontLogEmptyChanges()
+            ->submitEmptyLogs(false)
             ->useLogName('post');
     }
 
