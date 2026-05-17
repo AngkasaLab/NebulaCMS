@@ -8,15 +8,27 @@ const availablePages = {
     ...pluginPages,
 };
 
+function hasOwnPage(pages: Record<string, unknown>, key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(pages, key);
+}
+
 export function resolveInertiaPage(name: string) {
     const corePath = `../pages/${name}.tsx`;
 
-    if (corePath in availablePages) {
+    const pluginSuffix = `/resources/js/pages/${name}.tsx`;
+    const pluginPath = Object.keys(pluginPages).find((path) => path.endsWith(pluginSuffix));
+
+    if (name.startsWith('Plugins/') && pluginPath) {
+        return resolvePageComponent(pluginPath, availablePages);
+    }
+
+    if (hasOwnPage(availablePages, corePath)) {
         return resolvePageComponent(corePath, availablePages);
     }
 
-    return resolvePageComponent(
-        `../../../plugins/*/resources/js/pages/${name}.tsx`,
-        availablePages
-    );
+    if (!pluginPath) {
+        throw new Error(`Page not found: ${name}`);
+    }
+
+    return resolvePageComponent(pluginPath, availablePages);
 }
