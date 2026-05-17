@@ -1,9 +1,9 @@
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/react';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { AppearanceProvider } from './contexts/appearance-context';
+import { resolveInertiaPage } from './lib/resolve-inertia-page';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -11,7 +11,7 @@ import { ErrorBoundary } from './components/error-boundary';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
+    resolve: resolveInertiaPage,
     setup({ el, App, props }) {
         const root = createRoot(el);
 

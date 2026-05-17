@@ -2,9 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Plugin;
+use App\Support\PluginHooks;
 use App\Services\UpdateService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
@@ -66,6 +69,84 @@ class HandleInertiaRequests extends Middleware
                 'updateCheck' => fn () => $request->session()->get('updateCheck'),
             ],
             'updateAvailable' => fn () => app(UpdateService::class)->getSharedUpdateAvailability(),
+            'adminNavigation' => fn () => $this->buildAdminNavigation($request),
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildAdminNavigation(Request $request): array
+    {
+        /** @var Collection<int, Plugin> $plugins */
+        $plugins = app()->bound('plugins') ? app('plugins') : collect();
+
+        $items = $plugins
+            ->flatMap(fn (Plugin $plugin) => $plugin->getAdminNavigationFromDisk())
+            ->values()
+            ->all();
+
+        $items = apply_filters(PluginHooks::ADMIN_NAVIGATION, $items, $request);
+
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map([$this, 'normalizeAdminNavigationItem'], $items),
+            fn (?array $item) => $item !== null
+        ));
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>|null
+     */
+    protected function normalizeAdminNavigationItem(array $item): ?array
+    {
+        $title = $item['title'] ?? null;
+        $href = $item['href'] ?? null;
+
+        if (! is_string($title) || $title === '' || ! is_string($href) || $href === '') {
+            return null;
+        }
+
+        $group = $item['group'] ?? 'admin';
+        if (! is_string($group) || ! in_array($group, ['main', 'content', 'admin'], true)) {
+            $group = 'admin';
+        }
+
+        $children = [];
+        foreach ($item['items'] ?? [] as $child) {
+            if (! is_array($child)) {
+                continue;
+            }
+
+            $childTitle = $child['title'] ?? null;
+            $childHref = $child['href'] ?? null;
+            if (! is_string($childTitle) || $childTitle === '' || ! is_string($childHref) || $childHref === '') {
+                continue;
+            }
+
+            $children[] = [
+                'title' => $childTitle,
+                'href' => $childHref,
+            ];
+        }
+
+        $matchPaths = array_values(array_filter(
+            is_array($item['match_paths'] ?? null) ? $item['match_paths'] : [],
+            fn ($path) => is_string($path) && $path !== ''
+        ));
+
+        return [
+            'title' => $title,
+            'href' => $href,
+            'group' => $group,
+            'badge' => is_string($item['badge'] ?? null) || is_bool($item['badge'] ?? null) ? $item['badge'] : null,
+            'icon' => is_string($item['icon'] ?? null) ? $item['icon'] : null,
+            'items' => $children,
+            'match_paths' => $matchPaths,
         ];
     }
 }

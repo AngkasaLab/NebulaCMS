@@ -118,5 +118,8 @@
         "resources/js/**/*.ts",
         "resources/js/**/*.d.ts",
         "resources/js/**/*.tsx",
+        "plugins/*/resources/js/**/*.ts",
+        "plugins/*/resources/js/**/*.d.ts",
+        "plugins/*/resources/js/**/*.tsx"
     ]
 }

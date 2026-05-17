@@ -25,6 +25,10 @@ final class PluginHooks
 
     public const PLUGIN_REGISTER_ROUTES = 'plugin.register_routes';
 
+    public const PLUGIN_ROUTE_CONFIG = 'plugin.route_config';
+
+    public const ADMIN_NAVIGATION = 'admin.navigation';
+
     public const THEME_LOADED = 'theme.loaded';
 
     public const THEME_STYLES = 'theme.styles';

@@ -1,5 +1,4 @@
 import { LucideIcon } from 'lucide-react';
-import type { Config } from 'ziggy-js';
 
 export interface Auth {
     user: User | null;
@@ -23,6 +22,17 @@ export interface NavItem {
     isActive?: boolean;
     badge?: boolean | string;
     items?: { title: string; href: string }[];
+    matchPaths?: string[];
+}
+
+export interface AdminNavigationItem {
+    title: string;
+    href: string;
+    group: 'main' | 'content' | 'admin';
+    icon?: string | null;
+    items?: { title: string; href: string }[];
+    badge?: boolean | string | null;
+    match_paths?: string[];
 }
 
 /** Result shape from UpdateService::checkForUpdate(), also cached under `update_available`. */
@@ -37,6 +47,11 @@ export interface UpdateCheckResult {
     error?: string;
 }
 
+export interface ZiggyConfigLike {
+    location: string;
+    [key: string]: unknown;
+}
+
 export interface SharedData {
     name: string;
     locale: string;
@@ -46,9 +61,10 @@ export interface SharedData {
     };
     quote: { message: string; author: string };
     auth: Auth;
-    ziggy: Config & { location: string };
+    ziggy: ZiggyConfigLike;
     sidebarOpen: boolean;
     updateAvailable: UpdateCheckResult | null;
+    adminNavigation: AdminNavigationItem[];
     [key: string]: unknown;
 }
 

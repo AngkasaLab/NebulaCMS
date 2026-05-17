@@ -139,6 +139,32 @@ class Plugin extends Model
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function getRouteConfigFromDisk(): ?array
+    {
+        $json = $this->readPluginJson();
+        $routes = $json['routes'] ?? null;
+
+        return is_array($routes) ? $routes : null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAdminNavigationFromDisk(): array
+    {
+        $json = $this->readPluginJson();
+        $navigation = $json['admin_navigation'] ?? [];
+
+        if (is_array($navigation) && (isset($navigation['title']) || isset($navigation['href']))) {
+            return [$navigation];
+        }
+
+        return is_array($navigation) ? array_values(array_filter($navigation, 'is_array')) : [];
+    }
+
+    /**
      * Activate this plugin
      */
     public function activate(): self

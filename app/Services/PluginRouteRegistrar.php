@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Route;
 /**
  * Registers optional per-plugin routes from plugins/{slug}/routes.php.
  *
- * Routes are prefixed with /_plugin/{slug} and named plugin.{slug}.* to avoid
- * collisions with core routes. Dynamic registration may not be included in
- * `php artisan route:cache` output; avoid route caching or document limitations.
+ * Plugins may override the default route group via `plugin.json > routes`.
+ * Dynamic registration may not be included in `php artisan route:cache` output;
+ * avoid route caching or document limitations.
  */
 class PluginRouteRegistrar
 {
@@ -40,12 +40,67 @@ class PluginRouteRegistrar
                 continue;
             }
 
-            Route::middleware('web')
-                ->prefix('_plugin/'.$plugin->slug)
-                ->name('plugin.'.$plugin->slug.'.')
-                ->group(function () use ($routesFile) {
-                    require $routesFile;
-                });
+            $routeConfig = $this->resolveRouteConfig($plugin);
+            $group = Route::middleware($routeConfig['middleware']);
+
+            if ($routeConfig['prefix'] !== '') {
+                $group->prefix($routeConfig['prefix']);
+            }
+
+            if ($routeConfig['name_prefix'] !== '') {
+                $group->name($routeConfig['name_prefix']);
+            }
+
+            $group->group(function () use ($routesFile) {
+                require $routesFile;
+            });
         }
+    }
+
+    /**
+     * @return array{prefix: string, name_prefix: string, middleware: array<int, string>}
+     */
+    protected function resolveRouteConfig(Plugin $plugin): array
+    {
+        $config = array_merge([
+            'prefix' => '_plugin/'.$plugin->slug,
+            'name_prefix' => 'plugin.'.$plugin->slug.'.',
+            'middleware' => ['web'],
+        ], $plugin->getRouteConfigFromDisk() ?? []);
+
+        $config = apply_filters(PluginHooks::PLUGIN_ROUTE_CONFIG, $config, $plugin);
+
+        $middleware = array_values(array_filter(
+            is_array($config['middleware'] ?? null) ? $config['middleware'] : ['web'],
+            fn ($value) => is_string($value) && $value !== ''
+        ));
+
+        if ($middleware === []) {
+            $middleware = ['web'];
+        }
+
+        return [
+            'prefix' => $this->normalizePrefix($config['prefix'] ?? '_plugin/'.$plugin->slug),
+            'name_prefix' => $this->normalizeNamePrefix($config['name_prefix'] ?? 'plugin.'.$plugin->slug.'.'),
+            'middleware' => $middleware,
+        ];
+    }
+
+    protected function normalizePrefix(mixed $prefix): string
+    {
+        if (! is_string($prefix)) {
+            return '';
+        }
+
+        return trim($prefix, '/');
+    }
+
+    protected function normalizeNamePrefix(mixed $namePrefix): string
+    {
+        if (! is_string($namePrefix) || $namePrefix === '') {
+            return '';
+        }
+
+        return str_ends_with($namePrefix, '.') ? $namePrefix : $namePrefix.'.';
     }
 }

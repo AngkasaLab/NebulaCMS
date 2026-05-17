@@ -31,6 +31,17 @@ export interface NavItem {
     items?: NavSubItem[];
     badge?: boolean | string;
     isActive?: boolean;
+    matchPaths?: string[];
+}
+
+export interface AdminNavigationItem {
+    title: string;
+    href: string;
+    group: 'main' | 'content' | 'admin';
+    icon?: string | null;
+    items?: NavSubItem[];
+    badge?: boolean | string | null;
+    match_paths?: string[];
 }
 
 export interface BreadcrumbItem {
@@ -76,6 +87,6 @@ export interface SharedData {
     ziggy: Config & { location: string };
     sidebarOpen: boolean;
     updateAvailable: UpdateCheckResult | null;
+    adminNavigation: AdminNavigationItem[];
     [key: string]: unknown;
 }
-

@@ -1,5 +1,9 @@
-import type { Config } from 'ziggy-js';
-import type { Auth } from './index';
+import type { AdminNavigationItem, Auth } from './index';
+
+interface ZiggyConfigLike {
+    location: string;
+    [key: string]: unknown;
+}
 
 declare interface SharedData {
     name: string;
@@ -10,8 +14,9 @@ declare interface SharedData {
     };
     quote: { message: string; author: string };
     auth: Auth;
-    ziggy: Config & { location: string };
+    ziggy: ZiggyConfigLike;
     sidebarOpen: boolean;
+    adminNavigation: AdminNavigationItem[];
     [key: string]: unknown;
 }
 

@@ -1,7 +1,7 @@
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
+import { type AdminNavigationItem, type NavItem } from '@/types';
 import { type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { LayoutGrid, File, FileText, Settings, Users, Shield, Image, Paintbrush, AlignJustify, Puzzle, ScrollText } from 'lucide-react';
@@ -12,8 +12,35 @@ function can(permissions: string[], name: string): boolean {
     return permissions.includes(name);
 }
 
+const iconMap = {
+    AlignJustify,
+    File,
+    FileText,
+    Image,
+    LayoutGrid,
+    Paintbrush,
+    Puzzle,
+    ScrollText,
+    Settings,
+    Shield,
+    Users,
+} as const;
+
+function toNavItem(item: AdminNavigationItem): NavItem {
+    const icon = item.icon ? iconMap[item.icon as keyof typeof iconMap] : undefined;
+
+    return {
+        title: item.title,
+        href: item.href,
+        icon,
+        badge: item.badge ?? undefined,
+        matchPaths: item.match_paths,
+        items: item.items,
+    };
+}
+
 export function AppSidebar() {
-    const { auth, updateAvailable } = usePage<SharedData>().props;
+    const { auth, updateAvailable, adminNavigation } = usePage<SharedData>().props;
     const permissions = useMemo(() => auth.permissions ?? [], [auth.permissions]);
 
     const { mainNavItems, contentNavItems, adminNavItems } = useMemo(() => {
@@ -112,8 +139,24 @@ export function AppSidebar() {
             });
         }
 
+        for (const item of adminNavigation ?? []) {
+            const navItem = toNavItem(item);
+
+            if (item.group === 'main') {
+                main.push(navItem);
+                continue;
+            }
+
+            if (item.group === 'content') {
+                content.push(navItem);
+                continue;
+            }
+
+            admin.push(navItem);
+        }
+
         return { mainNavItems: main, contentNavItems: content, adminNavItems: admin };
-    }, [permissions, updateAvailable]);
+    }, [permissions, updateAvailable, adminNavigation]);
 
     return (
         <Sidebar collapsible="icon" variant="inset">

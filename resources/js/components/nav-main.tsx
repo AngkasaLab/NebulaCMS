@@ -25,29 +25,42 @@ interface NavMainProps {
 }
 
 export function NavMain({ items, label }: NavMainProps) {
-  const { component } = usePage()
+  const { url } = usePage()
 
-  const isUrlMatching = (itemUrl?: string) => {
-    // Pastikan itemUrl tidak undefined
-    if (!itemUrl) return false
+  const normalizePath = (value?: string) => {
+    if (!value) return "/"
 
-    // Mengambil resource name dari URL
-    const getResourceName = (url: string) => {
-      const segments = url.split('/')
-      // Mengambil segment yang merepresentasikan resource (posts, categories, tags, etc)
-      return segments.find(segment =>
-        ['dashboard', 'posts', 'categories', 'tags', 'pages', 'users', 'roles', 'media', 'menus', 'themes', 'plugins', 'settings'].includes(segment)
-      )
+    try {
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        value = new URL(value).pathname
+      }
+    } catch {
+      // Keep the original value if URL parsing fails.
     }
 
-    const currentRouteName = component.toLowerCase()
-    const itemResource = getResourceName(itemUrl)
+    const [path] = value.split("?")
+    const normalized = path.startsWith("/") ? path : `/${path}`
 
-    if (!itemResource) return false
+    return normalized !== "/" ? normalized.replace(/\/+$/, "") : normalized
+  }
 
-    // Mencocokkan route name dengan resource
-    // Contoh: admin.posts.index, admin.posts.create akan cocok dengan resource 'posts'
-    return currentRouteName.includes(itemResource)
+  const currentPath = normalizePath(url)
+
+  const matchesPath = (candidate: string, current: string) => {
+    if (candidate.endsWith("/*")) {
+      const base = candidate.slice(0, -2) || "/"
+      return current === base || current.startsWith(`${base}/`)
+    }
+
+    if (candidate === "/") return current === "/"
+    return current === candidate || current.startsWith(`${candidate}/`)
+  }
+
+  const isUrlMatching = (itemUrl?: string, matchPaths?: string[]) => {
+    if (!itemUrl) return false
+
+    const candidates = [itemUrl, ...(matchPaths ?? [])].map(normalizePath)
+    return candidates.some(candidate => matchesPath(candidate, currentPath))
   }
 
   return (
@@ -55,7 +68,7 @@ export function NavMain({ items, label }: NavMainProps) {
       {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarMenu>
         {items.map((item) => {
-          const isActive = isUrlMatching(item.href)
+          const isActive = isUrlMatching(item.href, item.matchPaths)
 
           if (item.items && item.items.length > 0) {
             const hasActiveChild = item.items.some(subItem => isUrlMatching(subItem.href))
