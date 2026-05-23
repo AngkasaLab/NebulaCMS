@@ -1,0 +1,4 @@
+[submodule "themes/nebula-site/docs"]
+	path = themes/nebula-site/docs
+	url = git@github.com:AngkasaLab/nebula-docs.git
+	branch = main
