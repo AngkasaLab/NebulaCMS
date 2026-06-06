@@ -11,7 +11,7 @@ return [
     | to compare against the latest GitHub release.
     |
     */
-    'version' => '1.4.0',
+    'version' => '1.6.0',
 
     /*
     |--------------------------------------------------------------------------
