@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useMemo, useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -11,20 +12,74 @@ interface Media {
     id: number;
     name: string;
     url?: string;
+    variant_urls?: Record<string, string>;
+    mime_type?: string;
+    size?: string;
+    created_at?: string;
 }
 
 interface MediaPickerProps {
-    media: Media[];
+    media?: Media[];
     selectedMediaId?: string;
     onSelect: (mediaId: string) => void;
     onUpload: (file: File) => void;
     featuredImageUrl?: string;
 }
 
-export default function MediaPicker({ media, selectedMediaId, onSelect, onUpload, featuredImageUrl }: MediaPickerProps) {
+type PickerFolder = {
+    id: number;
+    name: string;
+    parent_id: number | null;
+    is_folder: true;
+};
+
+type PickerMedia = {
+    id: number;
+    name: string;
+    url: string;
+    variant_urls: Record<string, string>;
+    mime_type: string;
+    size: string;
+    created_at: string;
+    is_folder: false;
+};
+
+type PickerPaginator<T> = {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    next_page_url: string | null;
+    prev_page_url: string | null;
+    per_page: number;
+    total: number;
+};
+
+type PickerResponse = {
+    folders: PickerFolder[];
+    media: PickerPaginator<PickerMedia>;
+    currentFolder: { id: number; name: string; parent_id: number | null } | null;
+    breadcrumbs: { id: number; name: string }[];
+    filters: { search?: string; type?: string; folder_id?: string };
+    uploadSecurity: unknown;
+};
+
+export default function MediaPicker({
+    media = [],
+    selectedMediaId,
+    onSelect,
+    onUpload,
+    featuredImageUrl,
+}: MediaPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('upload');
     const [previewUrl, setPreviewUrl] = useState<string | undefined>(sanitizeUrl(featuredImageUrl || ''));
+
+    const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+    const [libraryError, setLibraryError] = useState<string | null>(null);
+    const [libraryFolderId, setLibraryFolderId] = useState<number | null>(null);
+    const [librarySearch, setLibrarySearch] = useState('');
+    const [libraryPage, setLibraryPage] = useState(1);
+    const [libraryData, setLibraryData] = useState<PickerResponse | null>(null);
 
     useEffect(() => {
         // Cleanup old preview URL when component unmounts or when new file is selected
@@ -60,6 +115,55 @@ export default function MediaPicker({ media, selectedMediaId, onSelect, onUpload
         onSelect(mediaId);
         setIsOpen(false);
     };
+
+    const fetchLibrary = async (params?: { folderId?: number | null; search?: string; page?: number }) => {
+        setIsLoadingLibrary(true);
+        setLibraryError(null);
+        try {
+            const folderId = params?.folderId ?? libraryFolderId;
+            const search = params?.search ?? librarySearch;
+            const page = params?.page ?? libraryPage;
+            const response = await axios.get<PickerResponse>(route('admin.media.picker'), {
+                params: {
+                    folder_id: folderId ?? undefined,
+                    type: 'image',
+                    search: search || undefined,
+                    page,
+                    per_page: 24,
+                },
+            });
+            setLibraryData(response.data);
+        } catch (e) {
+            const message =
+                e instanceof Error ? e.message : 'Gagal memuat media library';
+            setLibraryError(message);
+        } finally {
+            setIsLoadingLibrary(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'media') {
+            return;
+        }
+        fetchLibrary();
+    }, [isOpen, activeTab]);
+
+    const mediaItems = useMemo(() => {
+        if (libraryData) {
+            return libraryData.media.data;
+        }
+        return media.map((m) => ({
+            id: m.id,
+            name: m.name,
+            url: m.url ?? '',
+            variant_urls: m.variant_urls ?? {},
+            mime_type: m.mime_type ?? '',
+            size: m.size ?? '',
+            created_at: m.created_at ?? '',
+            is_folder: false as const,
+        }));
+    }, [libraryData, media]);
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -160,33 +264,146 @@ export default function MediaPicker({ media, selectedMediaId, onSelect, onUpload
                         </TabsContent>
 
                         <TabsContent value="media" className="mt-4">
-                            <div className="grid grid-cols-3 gap-4">
-                                {media.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className={`relative group cursor-pointer rounded-lg overflow-hidden ${
-                                            selectedMediaId === item.id.toString()
-                                                ? 'ring-2 ring-white'
-                                                : ''
-                                        }`}
-                                        onClick={() => handleMediaSelect(item.id.toString(), item.url)}
+                            <div className="space-y-3">
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={librarySearch}
+                                        onChange={(e) => setLibrarySearch(e.target.value)}
+                                        placeholder="Cari media..."
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setLibraryPage(1);
+                                            fetchLibrary({ search: librarySearch, page: 1 });
+                                        }}
+                                        disabled={isLoadingLibrary}
                                     >
-                                        {item.url ? (
-                                            <img
-                                                src={item.url}
-                                                alt={item.name}
-                                                className="w-full h-32 object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-32 bg-gray-800 flex items-center justify-center">
-                                                <ImageIcon className="w-8 h-8 text-gray-400" />
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <span className="text-white text-sm">{item.name}</span>
-                                        </div>
+                                        Cari
+                                    </Button>
+                                </div>
+
+                                {libraryData?.breadcrumbs && libraryData.breadcrumbs.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                                        <button
+                                            type="button"
+                                            className="underline"
+                                            onClick={() => {
+                                                setLibraryFolderId(null);
+                                                setLibraryPage(1);
+                                                fetchLibrary({ folderId: null, page: 1 });
+                                            }}
+                                        >
+                                            Root
+                                        </button>
+                                        {libraryData.breadcrumbs.map((bc) => (
+                                            <button
+                                                key={bc.id}
+                                                type="button"
+                                                className="underline"
+                                                onClick={() => {
+                                                    setLibraryFolderId(bc.id);
+                                                    setLibraryPage(1);
+                                                    fetchLibrary({ folderId: bc.id, page: 1 });
+                                                }}
+                                            >
+                                                / {bc.name}
+                                            </button>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
+
+                                {libraryError && (
+                                    <div className="text-sm text-destructive">{libraryError}</div>
+                                )}
+
+                                <div className="grid grid-cols-3 gap-4">
+                                    {libraryData?.folders?.map((folder) => (
+                                        <button
+                                            key={`folder-${folder.id}`}
+                                            type="button"
+                                            className="rounded-lg border p-3 text-left hover:bg-gray-900"
+                                            onClick={() => {
+                                                setLibraryFolderId(folder.id);
+                                                setLibraryPage(1);
+                                                fetchLibrary({ folderId: folder.id, page: 1 });
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-10 h-10 bg-gray-800 rounded flex items-center justify-center">
+                                                    <ImageIcon className="w-5 h-5 text-gray-400" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="font-medium truncate">{folder.name}</div>
+                                                    <div className="text-xs text-muted-foreground">Folder</div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+
+                                    {mediaItems.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            className={`relative group cursor-pointer rounded-lg overflow-hidden ${
+                                                selectedMediaId === item.id.toString()
+                                                    ? 'ring-2 ring-white'
+                                                    : ''
+                                            }`}
+                                            onClick={() => handleMediaSelect(item.id.toString(), item.url)}
+                                        >
+                                            {item.url ? (
+                                                <img
+                                                    src={sanitizeUrl(item.url)}
+                                                    alt={item.name}
+                                                    className="w-full h-32 object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-32 bg-gray-800 flex items-center justify-center">
+                                                    <ImageIcon className="w-8 h-8 text-gray-400" />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <span className="text-white text-sm px-2 text-center line-clamp-2">
+                                                    {item.name}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {libraryData && (
+                                    <div className="flex justify-between items-center pt-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={isLoadingLibrary || !libraryData.media.prev_page_url}
+                                            onClick={() => {
+                                                const nextPage = Math.max(1, libraryData.media.current_page - 1);
+                                                setLibraryPage(nextPage);
+                                                fetchLibrary({ page: nextPage });
+                                            }}
+                                        >
+                                            Prev
+                                        </Button>
+                                        <div className="text-sm text-muted-foreground">
+                                            Page {libraryData.media.current_page} / {libraryData.media.last_page}
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={isLoadingLibrary || !libraryData.media.next_page_url}
+                                            onClick={() => {
+                                                const nextPage = libraryData.media.current_page + 1;
+                                                setLibraryPage(nextPage);
+                                                fetchLibrary({ page: nextPage });
+                                            }}
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
                     </Tabs>

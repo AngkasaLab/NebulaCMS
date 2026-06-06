@@ -28,7 +28,7 @@ interface Props {
         name: string;
         color: string;
     }[];
-    media: {
+    media?: {
         id: number;
         name: string;
         url?: string;
@@ -53,7 +53,7 @@ export default function Edit({ post, categories, tags, media, preview }: Props) 
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Edit Post" />
             <div className="p-4">
-                <Form post={post} categories={categories} tags={tags} media={media} preview={preview} />
+                <Form post={post} categories={categories} tags={tags} media={media ?? []} preview={preview} />
             </div>
         </AppLayout>
     );

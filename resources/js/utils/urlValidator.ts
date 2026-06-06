@@ -32,3 +32,25 @@ export const sanitizeUrl = (url: string): string => {
   // Kembalikan URL kosong jika tidak valid
   return '';
 };
+
+export const sanitizeLinkHref = (href: string): string => {
+  const value = href.trim();
+  if (!value) {
+    return '';
+  }
+
+  if (value.startsWith('#') || value.startsWith('/') || value.startsWith('?')) {
+    return value;
+  }
+
+  try {
+    const parsedUrl = new URL(value);
+    if (['http:', 'https:', 'mailto:', 'tel:'].includes(parsedUrl.protocol)) {
+      return value;
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+};

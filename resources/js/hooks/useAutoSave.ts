@@ -3,11 +3,16 @@ import axios from 'axios';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+export type PreviewLinks = {
+    url: string;
+    signed_url: string;
+};
+
 interface AutoSaveOptions {
     /** Delay in milliseconds before triggering auto-save (default: 3000) */
     debounceMs?: number;
     /** Callback when save is successful */
-    onSuccess?: (postId: number, savedAt: string) => void;
+    onSuccess?: (postId: number, savedAt: string, preview?: PreviewLinks) => void;
     /** Callback when save fails */
     onError?: (error: string) => void;
 }
@@ -20,6 +25,14 @@ interface AutoSaveData {
     featured_image_id?: string;
     tags?: string[];
 }
+
+type AutoSaveResponse = {
+    success: boolean;
+    post_id: number;
+    saved_at: string;
+    message?: string;
+    preview?: PreviewLinks;
+};
 
 interface UseAutoSaveReturn {
     /** Current save status */
@@ -48,8 +61,10 @@ export function useAutoSave(
     const [error, setError] = useState<string | null>(null);
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const resetStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingDataRef = useRef<AutoSaveData | null>(null);
     const isSavingRef = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const performSave = useCallback(async (data: AutoSaveData) => {
         if (isSavingRef.current) {
@@ -67,28 +82,48 @@ export function useAutoSave(
                 ? route('admin.posts.autosave.update', { post: postId })
                 : route('admin.posts.autosave');
 
-            const response = await axios.post(url, data);
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+            const abortController = new AbortController();
+            abortControllerRef.current = abortController;
+
+            const response = await axios.post<AutoSaveResponse>(url, data, {
+                signal: abortController.signal,
+            });
 
             if (response.data.success) {
                 setPostId(response.data.post_id);
                 setLastSavedAt(response.data.saved_at);
                 setStatus('saved');
-                onSuccess?.(response.data.post_id, response.data.saved_at);
+                onSuccess?.(response.data.post_id, response.data.saved_at, response.data.preview);
 
                 // Reset to idle after 2 seconds
-                setTimeout(() => {
+                if (resetStatusTimeoutRef.current) {
+                    clearTimeout(resetStatusTimeoutRef.current);
+                }
+                resetStatusTimeoutRef.current = setTimeout(() => {
                     setStatus((prev) => (prev === 'saved' ? 'idle' : prev));
                 }, 2000);
             } else {
                 throw new Error(response.data.message || 'Failed to save');
             }
         } catch (err) {
+            if (axios.isCancel(err)) {
+                return;
+            }
+
+            if (err instanceof Error && err.name === 'CanceledError') {
+                return;
+            }
+
             const errorMessage = err instanceof Error ? err.message : 'Failed to save draft';
             setError(errorMessage);
             setStatus('error');
             onError?.(errorMessage);
         } finally {
             isSavingRef.current = false;
+            abortControllerRef.current = null;
 
             // If there's pending data, save it
             if (pendingDataRef.current) {
@@ -115,6 +150,13 @@ export function useAutoSave(
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
         }
+        if (resetStatusTimeoutRef.current) {
+            clearTimeout(resetStatusTimeoutRef.current);
+        }
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
         setStatus('idle');
         setLastSavedAt(null);
         setError(null);
@@ -126,6 +168,13 @@ export function useAutoSave(
         return () => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
+            }
+            if (resetStatusTimeoutRef.current) {
+                clearTimeout(resetStatusTimeoutRef.current);
+            }
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
             }
         };
     }, []);

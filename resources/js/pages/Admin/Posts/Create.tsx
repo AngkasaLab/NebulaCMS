@@ -21,7 +21,7 @@ interface Media {
 interface Props {
     categories: Category[];
     tags: Tag[];
-    media: Media[];
+    media?: Media[];
 }
 
 const breadcrumbs = [
@@ -43,7 +43,7 @@ export default function Create({ categories, tags, media }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Create Post" />
             <div className="p-4">
-            <Form categories={categories} tags={tags} media={media} />
+            <Form categories={categories} tags={tags} media={media ?? []} />
             </div>
         </AppLayout>
     );

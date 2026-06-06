@@ -2,6 +2,9 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import axios from 'axios';
+import { ClipboardEvent, DragEvent, useCallback, useState } from 'react';
 import {
     Bold,
     Italic,
@@ -18,9 +21,14 @@ import {
     Heading3,
     Strikethrough,
     Code,
+    Image as ImageIcon,
 } from 'lucide-react';
 import { Toggle } from './ui/toggle';
 import { Separator } from './ui/separator';
+import MediaLibraryDialog from './MediaLibraryDialog';
+import LinkDialog from './LinkDialog';
+import { sanitizeUrl } from '@/utils/urlValidator';
+import { toast } from 'sonner';
 
 interface RichTextEditorProps {
     content: string;
@@ -28,6 +36,8 @@ interface RichTextEditorProps {
 }
 
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+    const [isMediaDialogOpen, setIsMediaDialogOpen] = useState(false);
+    const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -36,6 +46,9 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
             }),
             Link.configure({
                 openOnClick: false,
+            }),
+            Image.configure({
+                allowBase64: false,
             }),
         ],
         content,
@@ -47,6 +60,83 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     if (!editor) {
         return null;
     }
+
+    const activeLinkHref = editor.getAttributes('link')?.href as string | undefined;
+
+    const uploadAndInsertImage = useCallback(
+        async (file: File, pos?: number) => {
+            const formData = new FormData();
+            formData.append('files[]', file);
+            const response = await axios.post<
+                { id: number; url: string; name: string; variant_urls: Record<string, string> }[]
+            >(route('admin.media.store'), formData, {
+                headers: {
+                    Accept: 'application/json',
+                },
+            });
+
+            const uploaded = response.data?.[0];
+            if (!uploaded?.url) {
+                throw new Error('Upload berhasil, tapi URL tidak tersedia');
+            }
+
+            const url = sanitizeUrl(uploaded.url);
+            if (pos) {
+                editor.chain().focus().setTextSelection(pos).setImage({ src: url }).run();
+                return;
+            }
+            editor.chain().focus().setImage({ src: url }).run();
+        },
+        [editor]
+    );
+
+    const handlePaste = useCallback(
+        async (e: ClipboardEvent<HTMLDivElement>) => {
+            const items = e.clipboardData?.items;
+            if (!items || items.length === 0) {
+                return;
+            }
+
+            const imageItem = Array.from(items).find(
+                (it) => it.kind === 'file' && it.type.startsWith('image/')
+            );
+            const file = imageItem?.getAsFile();
+            if (!file) {
+                return;
+            }
+
+            e.preventDefault();
+            try {
+                await uploadAndInsertImage(file);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Gagal upload gambar';
+                toast.error(message);
+            }
+        },
+        [uploadAndInsertImage]
+    );
+
+    const handleDrop = useCallback(
+        async (e: DragEvent<HTMLDivElement>) => {
+            const file = e.dataTransfer?.files?.[0];
+            if (!file || !file.type.startsWith('image/')) {
+                return;
+            }
+
+            e.preventDefault();
+
+            const coords = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+            const pos = coords?.pos;
+
+            try {
+                await uploadAndInsertImage(file, pos);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Gagal upload gambar';
+                toast.error(message);
+            }
+        },
+        [uploadAndInsertImage, editor]
+    );
 
     const toolbarItems = [
         {
@@ -128,13 +218,14 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
         {
             icon: <LinkIcon className="h-4 w-4" />,
             title: 'Link',
-            action: () => {
-                const url = window.prompt('URL:');
-                if (url) {
-                    editor?.chain().focus().setLink({ href: url }).run();
-                }
-            },
+            action: () => setIsLinkDialogOpen(true),
             isActive: () => editor?.isActive('link') ?? false,
+        },
+        {
+            icon: <ImageIcon className="h-4 w-4" />,
+            title: 'Image',
+            action: () => setIsMediaDialogOpen(true),
+            isActive: () => false,
         },
         {
             icon: <Quote className="h-4 w-4" />,
@@ -152,6 +243,26 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
     return (
         <div className="border rounded-lg overflow-hidden">
+            <MediaLibraryDialog
+                open={isMediaDialogOpen}
+                onOpenChange={setIsMediaDialogOpen}
+                onSelectUrl={(url) => {
+                    editor.chain().focus().setImage({ src: sanitizeUrl(url) }).run();
+                }}
+                type="image"
+                enableUpload={true}
+            />
+            <LinkDialog
+                open={isLinkDialogOpen}
+                onOpenChange={setIsLinkDialogOpen}
+                initialHref={activeLinkHref}
+                onSubmit={(href) => {
+                    editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+                }}
+                onUnset={() => {
+                    editor.chain().focus().unsetLink().run();
+                }}
+            />
             <div className="border-b p-2 flex flex-wrap gap-1 items-center">
                 {toolbarItems.map((item, index) => {
                     if (item.type === 'separator') {
@@ -174,6 +285,13 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
             <EditorContent
                 editor={editor}
+                onPaste={handlePaste}
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                    if (e.dataTransfer?.files?.[0]?.type?.startsWith('image/')) {
+                        e.preventDefault();
+                    }
+                }}
                 className="prose dark:prose-invert max-w-none p-4 min-h-[300px] focus:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[300px]"
             />
         </div>

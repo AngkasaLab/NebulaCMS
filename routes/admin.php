@@ -32,6 +32,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
 
     // Media Routes
     Route::get('media', [MediaController::class, 'index'])->name('admin.media.index');
+    Route::get('media/picker', [MediaController::class, 'picker'])->name('admin.media.picker');
     Route::post('media', [MediaController::class, 'store'])->name('admin.media.store');
     Route::get('media/{id}', [MediaController::class, 'show'])->name('admin.media.show');
     Route::delete('media/{id}', [MediaController::class, 'destroy'])->name('admin.media.destroy');

@@ -1,5 +1,5 @@
 import { router, Link, usePage } from '@inertiajs/react';
-import { FormEvent, useState, useEffect, useRef } from 'react';
+import { FormEvent, useMemo, useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import {
 import RichTextEditor from '@/components/RichTextEditor';
 import MediaPicker from '@/components/MediaPicker';
 import { SaveIndicator } from '@/components/SaveIndicator';
-import { useAutoSave } from '@/hooks/useAutoSave';
+import { PreviewLinks, useAutoSave } from '@/hooks/useAutoSave';
 import { Loader2, History, Calendar, Eye, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SharedData } from '@/types';
@@ -46,7 +46,7 @@ interface Props {
     };
     categories: Category[];
     tags: Tag[];
-    media: { id: number; name: string; url?: string }[];
+    media?: { id: number; name: string; url?: string }[];
     preview?: {
         url: string;
         signed_url: string;
@@ -72,16 +72,26 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
     const [selectedMediaId, setSelectedMediaId] = useState<string | undefined>(
         post?.featured_image_id?.toString() || undefined
     );
+    const [previewLinks, setPreviewLinks] = useState<PreviewLinks | undefined>(preview);
+
+    const localDraftKey = useMemo(() => {
+        return `nebulacms:admin-post:draft:${post?.id ?? 'new'}`;
+    }, [post?.id]);
+
+    const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Auto-save hook
     const { status: saveStatus, lastSavedAt, error: saveError, triggerSave } = useAutoSave(
         post?.id || null,
         {
             debounceMs: 3000,
-            onSuccess: (postId) => {
+            onSuccess: (postId, _savedAt, links) => {
                 // Update URL if this is a new post that just got an ID
                 if (!post && postId) {
                     window.history.replaceState({}, '', route('admin.posts.edit', postId));
+                }
+                if (links) {
+                    setPreviewLinks(links);
                 }
             },
             onError: (error) => {
@@ -97,7 +107,68 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
         excerpt: post?.excerpt || '',
         category_id: post?.category_id?.toString() || '',
         tag_ids: post?.tag_ids?.map(id => id.toString()) || [],
+        featured_image_id: post?.featured_image_id?.toString() || '',
     });
+
+    useEffect(() => {
+        const raw = localStorage.getItem(localDraftKey);
+        if (!raw) {
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(raw) as {
+                updatedAt: string;
+                data: {
+                    title: string;
+                    excerpt: string;
+                    content: string;
+                    category_id: string;
+                    tag_ids: string[];
+                    featured_image_id?: string;
+                    status: 'draft' | 'published' | 'scheduled' | 'pending_review';
+                    published_at: string;
+                };
+            };
+
+            const current = {
+                title: initialValuesRef.current.title,
+                excerpt: initialValuesRef.current.excerpt,
+                content: initialValuesRef.current.content,
+                category_id: initialValuesRef.current.category_id,
+                tag_ids: initialValuesRef.current.tag_ids,
+                featured_image_id: initialValuesRef.current.featured_image_id || undefined,
+                status: values.status,
+                published_at: values.published_at,
+            };
+
+            if (JSON.stringify(current) === JSON.stringify(parsed.data)) {
+                return;
+            }
+
+            const shouldRestore = window.confirm(
+                'Ada draft lokal yang belum tersimpan. Pulihkan draft tersebut?'
+            );
+            if (!shouldRestore) {
+                return;
+            }
+
+            setValues((prev) => ({
+                ...prev,
+                title: parsed.data.title ?? prev.title,
+                excerpt: parsed.data.excerpt ?? prev.excerpt,
+                content: parsed.data.content ?? prev.content,
+                category_id: parsed.data.category_id ?? prev.category_id,
+                tag_ids: parsed.data.tag_ids ?? prev.tag_ids,
+                status: parsed.data.status ?? prev.status,
+                published_at: parsed.data.published_at ?? prev.published_at,
+                featured_image: null,
+            }));
+            setSelectedMediaId(parsed.data.featured_image_id || undefined);
+        } catch {
+            localStorage.removeItem(localDraftKey);
+        }
+    }, [localDraftKey]);
 
     // Trigger auto-save when values change
     useEffect(() => {
@@ -106,7 +177,8 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
             values.content !== initialValuesRef.current.content ||
             values.excerpt !== initialValuesRef.current.excerpt ||
             values.category_id !== initialValuesRef.current.category_id ||
-            JSON.stringify(values.tag_ids) !== JSON.stringify(initialValuesRef.current.tag_ids);
+            JSON.stringify(values.tag_ids) !== JSON.stringify(initialValuesRef.current.tag_ids) ||
+            (selectedMediaId || '') !== (initialValuesRef.current.featured_image_id || '');
 
         if (hasChanged) {
             triggerSave({
@@ -119,6 +191,46 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
             });
         }
     }, [values, selectedMediaId, triggerSave]);
+
+    useEffect(() => {
+        if (!localDraftKey) {
+            return;
+        }
+
+        if (draftSaveTimeoutRef.current) {
+            clearTimeout(draftSaveTimeoutRef.current);
+        }
+
+        draftSaveTimeoutRef.current = setTimeout(() => {
+            const payload = {
+                updatedAt: new Date().toISOString(),
+                data: {
+                    title: values.title,
+                    excerpt: values.excerpt,
+                    content: values.content,
+                    category_id: values.category_id,
+                    tag_ids: values.tag_ids,
+                    featured_image_id: selectedMediaId,
+                    status: values.status,
+                    published_at: values.published_at,
+                },
+            };
+
+            localStorage.setItem(localDraftKey, JSON.stringify(payload));
+        }, 500);
+
+        return () => {
+            if (draftSaveTimeoutRef.current) {
+                clearTimeout(draftSaveTimeoutRef.current);
+            }
+        };
+    }, [localDraftKey, values, selectedMediaId]);
+
+    useEffect(() => {
+        if (lastSavedAt) {
+            localStorage.removeItem(localDraftKey);
+        }
+    }, [lastSavedAt, localDraftKey]);
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -299,14 +411,20 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {preview && (
+                                {previewLinks && (
                                     <div className="flex flex-wrap gap-2">
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
                                             className="gap-1"
-                                            onClick={() => window.open(preview.url, '_blank', 'noopener,noreferrer')}
+                                            onClick={() =>
+                                                window.open(
+                                                    previewLinks.url,
+                                                    '_blank',
+                                                    'noopener,noreferrer'
+                                                )
+                                            }
                                         >
                                             <Eye className="h-4 w-4" />
                                             {tp.preview ?? 'Preview'}
@@ -318,7 +436,9 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
                                             className="gap-1"
                                             onClick={async () => {
                                                 try {
-                                                    await navigator.clipboard.writeText(preview.signed_url);
+                                                    await navigator.clipboard.writeText(
+                                                        previewLinks.signed_url
+                                                    );
                                                     toast.success(
                                                         tp.preview_link_copied ?? 'Preview link copied'
                                                     );
@@ -422,7 +542,7 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
                         <div className="rounded-lg p-4 border space-y-4">
                             <h3 className="font-semibold ">Featured Image</h3>
                             <MediaPicker
-                                media={media}
+                                media={media ?? []}
                                 selectedMediaId={selectedMediaId}
                                 onSelect={(mediaId) => {
                                     setSelectedMediaId(mediaId);

@@ -10,6 +10,7 @@ use App\Models\MediaFolder;
 use App\Support\ContentSearch;
 use App\Support\InertiaUploadSecurity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -19,6 +20,7 @@ class MediaController extends Controller
     public function __construct()
     {
         $this->middleware('permission:view media')->only(['index', 'show', 'download']);
+        $this->middleware('permission:view media')->only(['picker']);
         $this->middleware('permission:create media')->only(['store', 'storeFolder']);
         $this->middleware('permission:edit media')->only(['move']);
         $this->middleware('permission:delete media')->only(['destroy', 'destroyFolder', 'bulkDestroy']);
@@ -91,6 +93,76 @@ class MediaController extends Controller
             'allFolders' => MediaFolder::select('id', 'name', 'parent_id')->orderBy('name')->get(),
             'media' => $media,
             'currentFolder' => $currentFolder,
+            'breadcrumbs' => $breadcrumbs,
+            'filters' => $request->only(['search', 'type', 'folder_id']),
+            'uploadSecurity' => InertiaUploadSecurity::media(),
+        ]);
+    }
+
+    public function picker(Request $request)
+    {
+        $folderId = $request->query('folder_id');
+        $currentFolder = $folderId ? MediaFolder::with('parent')->findOrFail($folderId) : null;
+
+        $folders = MediaFolder::where('parent_id', $folderId)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($folder) {
+                return [
+                    'id' => $folder->id,
+                    'name' => $folder->name,
+                    'parent_id' => $folder->parent_id,
+                    'is_folder' => true,
+                ];
+            });
+
+        $query = Media::query()->latest();
+        $query->where('folder_id', $folderId);
+
+        if ($request->filled('type')) {
+            $query->where('mime_type', 'like', $request->string('type')->toString().'/%');
+        }
+
+        if ($request->filled('search')) {
+            ContentSearch::applyLikeColumns($query, $request->string('search')->toString(), ['name']);
+        }
+
+        $perPage = (int) $request->query('per_page', 24);
+        $perPage = max(1, min(60, $perPage));
+
+        $media = $query->paginate($perPage)->through(function ($item) {
+            return [
+                'id' => $item->id,
+                'name' => $item->name,
+                'url' => $item->url,
+                'variant_urls' => $item->variant_urls,
+                'mime_type' => $item->mime_type,
+                'size' => $item->human_readable_size,
+                'created_at' => $item->created_at,
+                'is_folder' => false,
+            ];
+        });
+
+        $breadcrumbs = [];
+        if ($currentFolder) {
+            $temp = $currentFolder;
+            while ($temp) {
+                array_unshift($breadcrumbs, [
+                    'id' => $temp->id,
+                    'name' => $temp->name,
+                ]);
+                $temp = $temp->parent;
+            }
+        }
+
+        return response()->json([
+            'folders' => $folders,
+            'media' => $media,
+            'currentFolder' => $currentFolder ? [
+                'id' => $currentFolder->id,
+                'name' => $currentFolder->name,
+                'parent_id' => $currentFolder->parent_id,
+            ] : null,
             'breadcrumbs' => $breadcrumbs,
             'filters' => $request->only(['search', 'type', 'folder_id']),
             'uploadSecurity' => InertiaUploadSecurity::media(),
@@ -212,7 +284,7 @@ class MediaController extends Controller
         ]);
 
         if (! $media->user) {
-            $media->update(['user_id' => auth()->id() ?? 1]);
+            $media->update(['user_id' => Auth::id() ?? 1]);
             $media->load('user');
         }
 
@@ -309,9 +381,14 @@ class MediaController extends Controller
     {
         $media = Media::findOrFail($id);
 
-        return Storage::disk($media->disk)->download(
-            $media->path,
-            $media->name
-        );
+        $stream = Storage::disk($media->disk)->readStream($media->path);
+        abort_if($stream === false, 404);
+
+        return response()->streamDownload(function () use ($stream) {
+            fpassthru($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, $media->name);
     }
 }

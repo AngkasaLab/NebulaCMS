@@ -13,6 +13,8 @@ use App\Models\PostRevision;
 use App\Models\Tag;
 use App\Support\ContentSearch;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -76,12 +78,10 @@ class PostController extends Controller
     {
         $categories = Category::defaultOrder()->get()->toTree();
         $tags = Tag::all();
-        $media = Media::latest()->get();
 
         return Inertia::render('Admin/Posts/Create', [
             'categories' => $categories,
             'tags' => $tags,
-            'media' => $media,
         ]);
     }
 
@@ -92,7 +92,7 @@ class PostController extends Controller
     {
         $validated = $request->validated();
 
-        $validated['user_id'] = auth()->id();
+        $validated['user_id'] = Auth::id();
         $validated['slug'] = Str::slug($validated['title']);
 
         if ($request->hasFile('featured_image')) {
@@ -136,13 +136,11 @@ class PostController extends Controller
         $post->load(['tags', 'featuredImage']);
         $categories = Category::defaultOrder()->get()->toTree();
         $tags = Tag::all();
-        $media = Media::latest()->get();
 
         return Inertia::render('Admin/Posts/Edit', [
             'post' => $post,
             'categories' => $categories,
             'tags' => $tags,
-            'media' => $media,
             'preview' => [
                 'url' => URL::route('preview.post', $post),
                 'signed_url' => URL::temporarySignedRoute(
@@ -247,7 +245,7 @@ class PostController extends Controller
                 }
             } else {
                 // Create new draft post
-                $validated['user_id'] = auth()->id();
+                $validated['user_id'] = Auth::id();
                 $validated['status'] = 'draft';
                 $validated['slug'] = Str::slug($validated['title'] ?? 'untitled-'.time());
 
@@ -285,9 +283,17 @@ class PostController extends Controller
                 'post_id' => $post->id,
                 'saved_at' => now()->toISOString(),
                 'message' => 'Draft saved successfully.',
+                'preview' => [
+                    'url' => URL::route('preview.post', $post),
+                    'signed_url' => URL::temporarySignedRoute(
+                        'preview.post',
+                        now()->addHours(72),
+                        ['post' => $post->id]
+                    ),
+                ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Auto-save failed: '.$e->getMessage(), [
+            Log::error('Auto-save failed: '.$e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'validated' => $validated,
             ]);
@@ -375,26 +381,23 @@ class PostController extends Controller
 
         $ids = $request->input('ids');
         $count = count($ids);
-
-        switch ($action) {
-            case 'delete':
+        $message = match ($action) {
+            'delete' => (function () use ($ids, $count) {
                 Post::whereIn('id', $ids)->delete();
-                $message = "$count post(s) deleted successfully.";
-                break;
-
-            case 'publish':
+                return "$count post(s) deleted successfully.";
+            })(),
+            'publish' => (function () use ($ids, $count) {
                 Post::whereIn('id', $ids)->update([
                     'status' => 'published',
                     'published_at' => now(),
                 ]);
-                $message = "$count post(s) published successfully.";
-                break;
-
-            case 'draft':
+                return "$count post(s) published successfully.";
+            })(),
+            'draft' => (function () use ($ids, $count) {
                 Post::whereIn('id', $ids)->update(['status' => 'draft']);
-                $message = "$count post(s) moved to draft successfully.";
-                break;
-        }
+                return "$count post(s) moved to draft successfully.";
+            })(),
+        };
 
         return redirect()->back()->with('message', $message);
     }
