@@ -10,7 +10,7 @@
 
 NebulaCMS is a modern and open-source Content Management System (CMS) built with Laravel 12 and React. It is designed to provide an intuitive, flexible, and powerful content management experience.
 
-[Demo](https://nebula.angkasalabs.com/demo) • [Dokumentasi](https://nebula.angkasalabs.com/docs) • [Roadmap](https://github.com/AngkasaLabs/NebulaCMS/projects) • [Contribute](#-Contribute) 
+[Demo](https://nebula.angkasalabs.com/demo) • [Documentation](https://nebula.angkasalabs.com/docs) • [Roadmap](https://github.com/AngkasaLabs/NebulaCMS/projects) • [Contribute](#-Contribute) 
 
 </div>
 
@@ -108,9 +108,9 @@ Without this line, scheduled posts will never be published automatically; you wo
 
 ## 📷 Media: image variants & S3 / CDN
 
-- **Varian gambar:** untuk gambar raster (bukan SVG/GIF), setelah unggah NebulaCMS membuat preset `thumb`, `medium`, dan `large` (lebar maks. 300 / 768 / 1920 px) memakai [Intervention Image](https://image.intervention.io/). Metadata disimpan di kolom `variants`; URL lengkap tersedia di `variant_urls` pada API media admin. Matikan dengan `MEDIA_IMAGE_VARIANTS=false` atau sesuaikan preset di `config/media.php`.
-- **Disk penyimpanan:** set `MEDIA_DISK=public` (default, `storage/app/public` + symlink `public/storage`) atau `MEDIA_DISK=s3` setelah mengisi `AWS_*` di `.env` dan memastikan bucket serta IAM sudah benar.
-- **CDN / URL publik:** untuk disk `public`, set `MEDIA_URL` ke basis URL aset Anda (mis. `https://cdn.example.com/storage`) agar `Storage::url()` mengarah ke CDN. Untuk S3, gunakan `AWS_URL` (mis. CloudFront) sesuai [dokumentasi Laravel filesystem](https://laravel.com/docs/filesystem).
+- **Image variants:** For raster images (excluding SVG/GIF), upon upload NebulaCMS generates `thumb`, `medium`, and `large` presets (max width 300 / 768 / 1920 px) using [Intervention Image](https://image.intervention.io/). Metadata is saved in the `variants` column; absolute URLs are accessible via `variant_urls` in the admin media API. Disable with `MEDIA_IMAGE_VARIANTS=false` or customize presets in `config/media.php`.
+- **Storage disk:** Set `MEDIA_DISK=public` (default, `storage/app/public` + symlink `public/storage`) or `MEDIA_DISK=s3` after configuring the `AWS_*` variables in `.env` and ensuring your bucket and IAM policy are correctly configured.
+- **CDN / Public URL:** For the `public` disk, set `MEDIA_URL` to your asset base URL (e.g. `https://cdn.example.com/storage`) to route `Storage::url()` to the CDN. For S3, use `AWS_URL` (e.g. CloudFront) in accordance with the [Laravel filesystem documentation](https://laravel.com/docs/filesystem).
 
 **Full guide:** [Media storage, variants & CDN](https://nebula.angkasalabs.com/docs/media) on the documentation site.
 
