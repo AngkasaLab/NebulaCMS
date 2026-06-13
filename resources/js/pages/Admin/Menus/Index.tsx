@@ -163,9 +163,9 @@ export default function MenuBuilderPage({ menus: initialMenus, pages, posts }: P
     delete updateFields.children;
 
     router.put(route('admin.menus.items.update', id), {
-      ...updateFields,
+      ...(updateFields as Omit<MenuItemUpdatePayload, 'children'>),
       type: item.type,
-    } as any, {
+    }, {
       preserveScroll: true
     });
   }
