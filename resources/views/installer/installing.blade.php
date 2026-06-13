@@ -62,6 +62,45 @@ function setStepState(index, state) {
     }
 }
 
+/**
+ * Fetch one-step with retry automatically (to handle server restart
+ * that occurs when php artisan serve detects changes .env).
+ *
+ * @param {string} csrf  Current CSRF token
+ * @param {number} maxRetries  Maximum number of retries on network error
+ * @returns {Promise<{res: Response, data: object}>}
+ */
+async function fetchStep(csrf, maxRetries = 8) {
+    const delays = [500, 1000, 1500, 2000, 2500, 3000, 3000, 3000];
+    let lastErr;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const res = await fetch('{{ route("installer.run") }}', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: '_token=' + encodeURIComponent(csrf) + '&install_token=' + encodeURIComponent(installToken),
+            });
+            const data = await res.json().catch(() => ({}));
+            return { res, data };
+        } catch (err) {
+            lastErr = err;
+            if (attempt < maxRetries) {
+                const delay = delays[attempt] ?? 3000;
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+    }
+
+    throw lastErr;
+}
+
 async function runInstall() {
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const bar  = document.getElementById('progress-bar');
@@ -78,19 +117,7 @@ async function runInstall() {
             setStepState(stepIndex, 'running');
             bar.style.width = Math.round(((stepIndex + 0.15) / totalSteps) * 100) + '%';
 
-            const res = await fetch('{{ route("installer.run") }}', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: '_token=' + encodeURIComponent(csrf) + '&install_token=' + encodeURIComponent(installToken),
-            });
-
-            const data = await res.json().catch(() => ({}));
+            const { res, data } = await fetchStep(csrf);
 
             if (res.status === 422 && data.error) {
                 document.getElementById('error-message').textContent = data.error;

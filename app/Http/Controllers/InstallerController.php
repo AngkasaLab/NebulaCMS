@@ -305,10 +305,12 @@ class InstallerController extends Controller
 
                 return;
             case 3:
+                $this->reconfigureDb($db);
                 $this->createAdminUser($account);
 
                 return;
             case 4:
+                $this->reconfigureDb($db);
                 Artisan::call('db:seed', [
                     '--class' => ContentSampleSeeder::class,
                     '--force' => true,
@@ -429,6 +431,7 @@ class InstallerController extends Controller
     private function reconfigureDb(array $db): void
     {
         config([
+            'database.default' => 'mysql',
             'database.connections.mysql.host' => $db['host'],
             'database.connections.mysql.port' => $db['port'],
             'database.connections.mysql.database' => $db['database'],
@@ -438,6 +441,16 @@ class InstallerController extends Controller
 
         DB::purge('mysql');
         DB::reconnect('mysql');
+
+        // Forget resolved cache driver instances so they re-resolve using the updated connection
+        if (app()->bound('cache')) {
+            app('cache')->forgetDriver();
+        }
+
+        // Re-initialize Spatie's PermissionRegistrar to clear its cached connection reference
+        if (app()->bound(\Spatie\Permission\PermissionRegistrar::class)) {
+            app(\Spatie\Permission\PermissionRegistrar::class)->initializeCache();
+        }
     }
 
     private function createAdminUser(array $account): void
