@@ -165,7 +165,7 @@ export default function MenuBuilderPage({ menus: initialMenus, pages, posts }: P
     router.put(route('admin.menus.items.update', id), {
       ...updateFields,
       type: item.type,
-    }, {
+    } as any, {
       preserveScroll: true
     });
   }
