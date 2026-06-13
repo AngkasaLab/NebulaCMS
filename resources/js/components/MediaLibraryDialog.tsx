@@ -149,6 +149,7 @@ export default function MediaLibraryDialog({
             return;
         }
         fetchLibrary({ page: 1 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, activeTab]);
 
     return (

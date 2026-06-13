@@ -168,6 +168,7 @@ export default function Form({ post, categories, tags, media, preview }: Props) 
         } catch {
             localStorage.removeItem(localDraftKey);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [localDraftKey]);
 
     // Trigger auto-save when values change

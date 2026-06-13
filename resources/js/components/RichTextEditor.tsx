@@ -57,14 +57,11 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
         },
     });
 
-    if (!editor) {
-        return null;
-    }
-
-    const activeLinkHref = editor.getAttributes('link')?.href as string | undefined;
-
     const uploadAndInsertImage = useCallback(
         async (file: File, pos?: number) => {
+            if (!editor) {
+                return;
+            }
             const formData = new FormData();
             formData.append('files[]', file);
             const response = await axios.post<
@@ -118,6 +115,9 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
 
     const handleDrop = useCallback(
         async (e: DragEvent<HTMLDivElement>) => {
+            if (!editor) {
+                return;
+            }
             const file = e.dataTransfer?.files?.[0];
             if (!file || !file.type.startsWith('image/')) {
                 return;
@@ -137,6 +137,12 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
         },
         [uploadAndInsertImage, editor]
     );
+
+    if (!editor) {
+        return null;
+    }
+
+    const activeLinkHref = editor.getAttributes('link')?.href as string | undefined;
 
     const toolbarItems = [
         {

@@ -147,6 +147,7 @@ export default function MediaPicker({
             return;
         }
         fetchLibrary();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, activeTab]);
 
     const mediaItems = useMemo(() => {
