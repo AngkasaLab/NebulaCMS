@@ -17,6 +17,9 @@ export default defineConfig({
     esbuild: {
         jsx: 'automatic',
     },
+    build: {
+        target: 'esnext',
+    },
     resolve: {
         alias: {
             'ziggy-js': resolve(__dirname, 'vendor/tightenco/ziggy'),
