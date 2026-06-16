@@ -17,6 +17,15 @@ interface InertiaInvalidResponse {
     };
 }
 
+interface InertiaInvalidResponse {
+    request?: {
+        responseURL?: string;
+    };
+    config?: {
+        url?: string;
+    };
+}
+
 // Prevent non-Inertia HTML responses from rendering in a modal overlay (e.g. Blade templates)
 router.on('invalid', (event) => {
     if (event.detail.response.status === 200) {
