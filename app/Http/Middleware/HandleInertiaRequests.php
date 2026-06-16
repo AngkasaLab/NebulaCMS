@@ -70,6 +70,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'updateAvailable' => fn () => app(UpdateService::class)->getSharedUpdateAvailability(),
             'adminNavigation' => fn () => $this->buildAdminNavigation($request),
+            'pluginAssets' => fn () => app(\App\Services\PluginFrontendAssetRegistry::class)->allActivePluginAssets(),
         ];
     }
 

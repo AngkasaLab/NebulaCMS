@@ -203,6 +203,7 @@ export default function MediaPicker({
                         />
                         <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                             <Button
+                                type="button"
                                 variant="outline"
                                 className="text-white border-white hover:bg-white hover:text-black"
                                 onClick={() => setIsOpen(true)}
@@ -213,6 +214,7 @@ export default function MediaPicker({
                     </div>
                 ) : (
                     <Button
+                        type="button"
                         variant="outline"
                         className="h-[150px] w-[200px] border-dashed border-2 flex flex-col items-center justify-center gap-2 hover:border-white"
                         onClick={() => setIsOpen(true)}

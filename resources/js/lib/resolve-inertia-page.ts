@@ -24,19 +24,71 @@ function isResolvedPageModule(value: unknown): value is ResolvedPageModule {
     return typeof value === 'object' && value !== null && 'default' in value;
 }
 
-function resolvePluginPage(name: string): Promise<ResolvedPageModule> {
+function loadScript(src: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.head.appendChild(script);
+    });
+}
+
+function loadStyle(href: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`link[href="${href}"]`)) {
+            resolve();
+            return;
+        }
+
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.onload = () => resolve();
+        link.onerror = () => reject(new Error(`Failed to load stylesheet: ${href}`));
+        document.head.appendChild(link);
+    });
+}
+
+async function resolvePluginPage(name: string): Promise<ResolvedPageModule> {
     const runtimeWindow = window as PluginRuntimeWindow;
-    const page = runtimeWindow.NebulaCMS?.getInertiaPage(name) ?? runtimeWindow.NebulaPlugins?.[name];
+    let page = runtimeWindow.NebulaCMS?.getInertiaPage(name) ?? runtimeWindow.NebulaPlugins?.[name];
+
+    if (!page) {
+        const { router } = await import('@inertiajs/react');
+        const pluginAssets = (router as any).page?.props?.pluginAssets as Record<string, { scripts: string[]; styles: string[] }> | undefined;
+        const assets = pluginAssets?.[name];
+
+        if (assets) {
+            try {
+                if (assets.styles && assets.styles.length > 0) {
+                    await Promise.all(assets.styles.map(loadStyle));
+                }
+                if (assets.scripts && assets.scripts.length > 0) {
+                    await Promise.all(assets.scripts.map(loadScript));
+                }
+                page = runtimeWindow.NebulaCMS?.getInertiaPage(name) ?? runtimeWindow.NebulaPlugins?.[name];
+            } catch (error) {
+                console.error(`Error loading plugin assets for ${name}:`, error);
+            }
+        }
+    }
 
     if (!page) {
         throw new Error(`Plugin page not found: ${name}`);
     }
 
     if (isResolvedPageModule(page)) {
-        return Promise.resolve(page);
+        return page;
     }
 
-    return Promise.resolve({ default: page });
+    return { default: page };
 }
 
 export function resolveInertiaPage(name: string) {

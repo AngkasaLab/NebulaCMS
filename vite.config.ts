@@ -16,9 +16,15 @@ export default defineConfig({
     ],
     esbuild: {
         jsx: 'automatic',
+        target: 'esnext',
     },
     build: {
         target: 'esnext',
+    },
+    optimizeDeps: {
+        esbuildOptions: {
+            target: 'esnext',
+        },
     },
     resolve: {
         alias: {

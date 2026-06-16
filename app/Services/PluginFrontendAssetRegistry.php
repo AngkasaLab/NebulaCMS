@@ -32,6 +32,40 @@ class PluginFrontendAssetRegistry
     }
 
     /**
+     * Get all active plugin assets mapped by component name.
+     *
+     * @return array<string, array{scripts: array<int, string>, styles: array<int, string>}>
+     */
+    public function allActivePluginAssets(): array
+    {
+        $map = [];
+        foreach ($this->activePlugins() as $plugin) {
+            if (! $plugin instanceof Plugin) {
+                continue;
+            }
+
+            $frontend = $plugin->getFrontendConfigFromDisk();
+            if (! is_array($frontend) || ($frontend['type'] ?? '') !== 'inertia-prebuilt') {
+                continue;
+            }
+
+            $entrypoints = $plugin->getFrontendEntrypointsFromDisk();
+            if (! is_array($entrypoints)) {
+                continue;
+            }
+
+            foreach (array_keys($entrypoints) as $component) {
+                $resolved = $this->resolveForPlugin($plugin, $component);
+                if ($resolved !== null) {
+                    $map[$component] = $resolved;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * @return Collection<int, Plugin>
      */
     protected function activePlugins(): Collection

@@ -1,10 +1,12 @@
 import * as InertiaReact from '@inertiajs/react';
 import React from 'react';
+import * as ReactDOM from 'react-dom';
 import * as ReactJSXRuntime from 'react/jsx-runtime';
 
 type PluginPageComponent = unknown;
 
 window.React = React;
+window.ReactDOM = ReactDOM;
 window.ReactJSXRuntime = ReactJSXRuntime;
 window.InertiaReact = InertiaReact;
 window.NebulaPlugins ??= {};
