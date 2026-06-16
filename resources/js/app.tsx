@@ -9,11 +9,20 @@ const appName = import.meta.env.VITE_APP_NAME || 'NebulaCMS';
 
 import { ErrorBoundary } from './components/error-boundary';
 
+type InvalidResponse = {
+    request?: {
+        responseURL?: string;
+    };
+    config?: {
+        url?: string;
+    };
+};
+
 // Prevent non-Inertia HTML responses from rendering in a modal overlay (e.g. Blade templates)
 router.on('invalid', (event) => {
     if (event.detail.response.status === 200) {
         event.preventDefault();
-        const response = event.detail.response as any;
+        const response = event.detail.response as InvalidResponse;
         const redirectUrl = response.request?.responseURL || response.config?.url || '/';
         window.location.href = redirectUrl;
     }
