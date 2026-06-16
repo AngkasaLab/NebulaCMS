@@ -70,10 +70,7 @@ class PluginFrontendAssetRegistry
 
         $entryFile = $this->normalizeAssetPath($entry['file'] ?? null);
         if ($entryFile) {
-            $scripts[] = route('plugin.frontend.asset', [
-                'plugin' => $plugin->slug,
-                'path' => $entryFile,
-            ]);
+            $scripts[] = url("/plugin-assets/{$plugin->slug}/{$entryFile}");
         }
 
         foreach ($entry['css'] ?? [] as $cssFile) {
@@ -82,10 +79,7 @@ class PluginFrontendAssetRegistry
                 continue;
             }
 
-            $styles[] = route('plugin.frontend.asset', [
-                'plugin' => $plugin->slug,
-                'path' => $normalizedCss,
-            ]);
+            $styles[] = url("/plugin-assets/{$plugin->slug}/{$normalizedCss}");
         }
 
         return [

@@ -90,6 +90,10 @@ export default function MediaPicker({
         };
     }, [previewUrl, featuredImageUrl]);
 
+    useEffect(() => {
+        setPreviewUrl(sanitizeUrl(featuredImageUrl || ''));
+    }, [featuredImageUrl]);
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
