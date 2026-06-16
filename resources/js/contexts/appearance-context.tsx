@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type Context, type ReactNode } from 'react';
 import { type Appearance } from '@/types/appearance';
 
 interface AppearanceContextType {
@@ -6,7 +6,25 @@ interface AppearanceContextType {
     updateAppearance: (mode: Appearance) => void;
 }
 
-const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
+const globalKey = '__NebulaCMS_AppearanceContext__' as const;
+
+type AppearanceContextGlobal = {
+    [globalKey]?: Context<AppearanceContextType | undefined>;
+};
+
+const AppearanceContext = (() => {
+    if (typeof window !== 'undefined') {
+        const win = window as Window & AppearanceContextGlobal;
+
+        if (!win[globalKey]) {
+            win[globalKey] = createContext<AppearanceContextType | undefined>(undefined);
+        }
+
+        return win[globalKey];
+    }
+
+    return createContext<AppearanceContextType | undefined>(undefined);
+})();
 
 const prefersDark = () => {
     if (typeof window === 'undefined') return false;

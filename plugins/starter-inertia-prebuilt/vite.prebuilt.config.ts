@@ -21,6 +21,7 @@ export default defineConfig({
         outDir: resolve(__dirname, 'dist'),
         emptyOutDir: true,
         manifest: 'manifest.json',
+        target: 'esnext',
         rollupOptions: {
             input: resolve(__dirname, 'resources/js/plugin-app.tsx'),
         },
