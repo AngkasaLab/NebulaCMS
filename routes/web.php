@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\FeedController;
 use App\Http\Controllers\FrontendController;
+use App\Models\Plugin;
 use App\Http\Controllers\SitemapController;
 use App\Http\Middleware\EnsureContentPreviewAllowed;
 use Illuminate\Support\Facades\File;
@@ -69,6 +70,52 @@ Route::get('themes/{theme}/{path}', function ($theme, $path) {
         'Content-Type' => $mimeType,
     ]);
 })->where('path', '.*');
+
+Route::get('plugin-assets/{plugin}/{path}', function (string $plugin, string $path) {
+    if (! preg_match('/^[a-zA-Z0-9_-]+$/', $plugin)) {
+        abort(404, 'Invalid plugin name');
+    }
+
+    if (preg_match('/\.\./', $path) || str_starts_with($path, '/')) {
+        abort(403, 'Access denied');
+    }
+
+    $pluginModel = Plugin::query()
+        ->where('slug', $plugin)
+        ->where('is_active', true)
+        ->first();
+
+    if (! $pluginModel) {
+        abort(404);
+    }
+
+    $distDir = realpath(base_path("plugins/{$pluginModel->folder_name}/dist"));
+    $filePath = base_path("plugins/{$pluginModel->folder_name}/dist/{$path}");
+    $realPath = realpath($filePath);
+
+    if (! $distDir || ! $realPath || ! str_starts_with($realPath, $distDir)) {
+        abort(404);
+    }
+
+    if (! File::exists($realPath)) {
+        abort(404);
+    }
+
+    $extension = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
+    $mimeType = match ($extension) {
+        'js', 'mjs', 'cjs' => 'text/javascript',
+        'css' => 'text/css',
+        'json' => 'application/json',
+        'map' => 'application/json',
+        'svg' => 'image/svg+xml',
+        default => File::mimeType($realPath) ?: 'application/octet-stream',
+    };
+
+    return Response::file($realPath, [
+        'Content-Type' => $mimeType,
+        'Cache-Control' => 'public, max-age=3600',
+    ]);
+})->where('path', '.*')->name('plugin.frontend.asset');
 
 // Import other route files first
 require __DIR__.'/admin.php';

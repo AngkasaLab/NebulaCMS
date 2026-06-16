@@ -150,6 +150,84 @@ class Plugin extends Model
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function getFrontendConfigFromDisk(): ?array
+    {
+        $json = $this->readPluginJson();
+        $frontend = $json['frontend'] ?? null;
+
+        return is_array($frontend) ? $frontend : null;
+    }
+
+    public function getFrontendTypeFromDisk(): ?string
+    {
+        $config = $this->getFrontendConfigFromDisk();
+        $type = $config['type'] ?? null;
+
+        return is_string($type) && $type !== '' ? $type : null;
+    }
+
+    public function getFrontendManifestRelativePathFromDisk(): ?string
+    {
+        $config = $this->getFrontendConfigFromDisk();
+        $manifest = $config['manifest'] ?? null;
+
+        if (! is_string($manifest) || $manifest === '') {
+            return null;
+        }
+
+        return trim(str_replace('\\', '/', $manifest), '/');
+    }
+
+    public function getFrontendManifestAbsolutePathFromDisk(): ?string
+    {
+        $manifest = $this->getFrontendManifestRelativePathFromDisk();
+
+        return $manifest ? base_path("plugins/{$this->folder_name}/{$manifest}") : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getFrontendManifestFromDisk(): ?array
+    {
+        $path = $this->getFrontendManifestAbsolutePathFromDisk();
+        if (! $path || ! File::exists($path)) {
+            return null;
+        }
+
+        $data = json_decode(File::get($path), true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getFrontendEntrypointsFromDisk(): array
+    {
+        $config = $this->getFrontendConfigFromDisk();
+        $entrypoints = $config['entrypoints'] ?? null;
+
+        if (! is_array($entrypoints)) {
+            return [];
+        }
+
+        $resolved = [];
+
+        foreach ($entrypoints as $component => $entryKey) {
+            if (! is_string($component) || $component === '' || ! is_string($entryKey) || $entryKey === '') {
+                continue;
+            }
+
+            $resolved[$component] = $entryKey;
+        }
+
+        return $resolved;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function getAdminNavigationFromDisk(): array

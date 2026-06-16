@@ -3,11 +3,19 @@ import '../css/app.css';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { createRoot } from 'react-dom/client';
 import { AppearanceProvider } from './contexts/appearance-context';
+import { ErrorBoundary } from './components/error-boundary';
 import { resolveInertiaPage } from './lib/resolve-inertia-page';
 
 const appName = import.meta.env.VITE_APP_NAME || 'NebulaCMS';
 
-import { ErrorBoundary } from './components/error-boundary';
+interface InertiaInvalidResponse {
+    request?: {
+        responseURL?: string;
+    };
+    config?: {
+        url?: string;
+    };
+}
 
 interface InertiaInvalidResponse {
     request?: {

@@ -30,9 +30,21 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
+    @php
+        $component = is_string($page['component'] ?? null) ? $page['component'] : null;
+        $pluginAssets = app(\App\Services\PluginFrontendAssetRegistry::class)->resolveForComponent($component);
+    @endphp
+
     @routes
     @viteReactRefresh
-    @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+    @vite('resources/js/plugin-runtime-host.ts')
+    @foreach ($pluginAssets['styles'] as $style)
+        <link rel="stylesheet" href="{{ $style }}" />
+    @endforeach
+    @foreach ($pluginAssets['scripts'] as $script)
+        <script type="module" src="{{ $script }}"></script>
+    @endforeach
+    @vite('resources/js/app.tsx')
     @inertiaHead
 </head>
 

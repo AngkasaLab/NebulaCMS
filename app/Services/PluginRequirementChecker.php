@@ -20,7 +20,9 @@ class PluginRequirementChecker
 
         $requires = $plugin->requires;
         if (! is_array($requires) || $requires === []) {
-            return ['ok' => true, 'errors' => $errors, 'warnings' => $warnings];
+            $this->checkFrontendRuntime($plugin, $errors);
+
+            return ['ok' => count($errors) === 0, 'errors' => $errors, 'warnings' => $warnings];
         }
 
         // Check CMS version constraint
@@ -63,7 +65,28 @@ class PluginRequirementChecker
             }
         }
 
+        $this->checkFrontendRuntime($plugin, $errors);
+
         return ['ok' => count($errors) === 0, 'errors' => $errors, 'warnings' => $warnings];
+    }
+
+    /**
+     * @param  array<int, string>  $errors
+     */
+    protected function checkFrontendRuntime(Plugin $plugin, array &$errors): void
+    {
+        if ($plugin->getFrontendTypeFromDisk() !== 'inertia-prebuilt') {
+            return;
+        }
+
+        if ($plugin->getFrontendEntrypointsFromDisk() === []) {
+            $errors[] = 'Plugin frontend entrypoints are missing or invalid.';
+        }
+
+        $manifestPath = $plugin->getFrontendManifestAbsolutePathFromDisk();
+        if (! is_string($manifestPath) || $manifestPath === '' || ! is_file($manifestPath)) {
+            $errors[] = 'Plugin frontend manifest is missing.';
+        }
     }
 
     /**

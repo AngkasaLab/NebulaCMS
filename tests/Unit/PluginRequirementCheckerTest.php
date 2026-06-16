@@ -3,6 +3,7 @@
 use App\Models\Plugin;
 use App\Services\PluginRequirementChecker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
@@ -89,4 +90,40 @@ it('fails when required plugin is inactive', function () {
 
     expect($result['ok'])->toBeFalse();
     expect(implode(' ', $result['errors']))->toContain('activated');
+});
+
+it('fails when inertia-prebuilt frontend manifest is missing', function () {
+    $folder = '__pl_prebuilt_missing_'.uniqid();
+    $path = base_path("plugins/{$folder}");
+    File::makeDirectory($path, 0755, true);
+    File::put($path.'/plugin.json', json_encode([
+        'name' => 'Missing Prebuilt',
+        'slug' => $folder,
+        'version' => '1.0.0',
+        'frontend' => [
+            'type' => 'inertia-prebuilt',
+            'manifest' => 'dist/manifest.json',
+            'entrypoints' => [
+                'Plugins/MissingPrebuilt/Admin/Index' => 'resources/js/plugin-app.tsx',
+            ],
+        ],
+    ]));
+
+    $plugin = new Plugin([
+        'name' => 'Missing Prebuilt',
+        'slug' => $folder,
+        'folder_name' => $folder,
+        'version' => '1.0.0',
+    ]);
+
+    try {
+        $result = app(PluginRequirementChecker::class)->check($plugin);
+
+        expect($result['ok'])->toBeFalse();
+        expect(implode(' ', $result['errors']))->toContain('frontend manifest is missing');
+    } finally {
+        if (File::exists($path)) {
+            File::deleteDirectory($path);
+        }
+    }
 });

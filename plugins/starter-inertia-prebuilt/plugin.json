@@ -1,0 +1,36 @@
+{
+    "name": "Starter Inertia Prebuilt",
+    "slug": "starter-inertia-prebuilt",
+    "version": "1.0.0",
+    "description": "Built-in starter plugin for Inertia prebuilt admin pages, compatible with shared hosting.",
+    "author": "M FIRDAUS RIAWAN",
+    "author_url": "https://firdausriawan.my.id",
+    "requires": {
+        "cms_version": "^1.0.0"
+    },
+    "routes": {
+        "prefix": "",
+        "name_prefix": "",
+        "middleware": [
+            "web"
+        ]
+    },
+    "frontend": {
+        "type": "inertia-prebuilt",
+        "manifest": "dist/manifest.json",
+        "entrypoints": {
+            "Plugins/StarterInertiaPrebuilt/Admin/Index": "resources/js/plugin-app.tsx"
+        }
+    },
+    "admin_navigation": [
+        {
+            "title": "Starter Plugin",
+            "href": "/admin/starter-inertia-prebuilt",
+            "group": "admin",
+            "icon": "Puzzle",
+            "match_paths": [
+                "/admin/starter-inertia-prebuilt"
+            ]
+        }
+    ]
+}

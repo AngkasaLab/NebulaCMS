@@ -45,6 +45,8 @@ yarn-error.log
 !/plugins/hello-world/**
 !/plugins/reading-time/
 !/plugins/reading-time/**
+!/plugins/starter-inertia-prebuilt/
+!/plugins/starter-inertia-prebuilt/**
 
 # Override Blade dari `php artisan vendor:publish` — biasanya lokal
 /resources/views/vendor/
