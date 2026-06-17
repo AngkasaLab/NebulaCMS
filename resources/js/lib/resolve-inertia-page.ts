@@ -62,7 +62,13 @@ async function resolvePluginPage(name: string): Promise<ResolvedPageModule> {
 
     if (!page) {
         const { router } = await import('@inertiajs/react');
-        const pluginAssets = (router as any).page?.props?.pluginAssets as Record<string, { scripts: string[]; styles: string[] }> | undefined;
+        const pluginAssets = (router as unknown as {
+            page?: {
+                props?: {
+                    pluginAssets?: Record<string, { scripts: string[]; styles: string[] }>;
+                };
+            };
+        }).page?.props?.pluginAssets;
         const assets = pluginAssets?.[name];
 
         if (assets) {
