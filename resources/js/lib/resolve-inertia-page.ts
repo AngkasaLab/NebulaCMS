@@ -61,14 +61,16 @@ async function resolvePluginPage(name: string): Promise<ResolvedPageModule> {
     let page = runtimeWindow.NebulaCMS?.getInertiaPage(name) ?? runtimeWindow.NebulaPlugins?.[name];
 
     if (!page) {
-        const { router } = await import('@inertiajs/react');
-        const pluginAssets = (router as unknown as {
-            page?: {
-                props?: {
-                    pluginAssets?: Record<string, { scripts: string[]; styles: string[] }>;
-                };
-            };
-        }).page?.props?.pluginAssets;
+        let pluginAssets: Record<string, { scripts: string[]; styles: string[] }> | undefined;
+        try {
+            const appElement = document.getElementById('app');
+            if (appElement && appElement.dataset.page) {
+                const pageData = JSON.parse(appElement.dataset.page);
+                pluginAssets = pageData.props?.pluginAssets;
+            }
+        } catch (e) {
+            console.error('Failed to parse initial Inertia page data:', e);
+        }
         const assets = pluginAssets?.[name];
 
         if (assets) {

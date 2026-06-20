@@ -28,6 +28,14 @@ class MediaController extends Controller
 
     public function index(Request $request)
     {
+        try {
+            if (! file_exists(public_path('storage'))) {
+                \Illuminate\Support\Facades\Artisan::call('storage:link');
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to auto-create storage link: ' . $e->getMessage());
+        }
+
         $folderId = $request->query('folder_id');
         $currentFolder = $folderId ? MediaFolder::with('parent')->findOrFail($folderId) : null;
 
@@ -101,6 +109,14 @@ class MediaController extends Controller
 
     public function picker(Request $request)
     {
+        try {
+            if (! file_exists(public_path('storage'))) {
+                \Illuminate\Support\Facades\Artisan::call('storage:link');
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to auto-create storage link: ' . $e->getMessage());
+        }
+
         $folderId = $request->query('folder_id');
         $currentFolder = $folderId ? MediaFolder::with('parent')->findOrFail($folderId) : null;
 
