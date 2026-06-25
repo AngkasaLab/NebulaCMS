@@ -52,6 +52,15 @@ class SettingsController extends Controller
     public function clearCache()
     {
         cache()->flush();
-        return redirect()->back()->with('success', 'Cache berhasil dibersihkan');
+
+        try {
+            \Illuminate\Support\Facades\Artisan::call('view:clear');
+            \Illuminate\Support\Facades\Artisan::call('config:clear');
+            \Illuminate\Support\Facades\Artisan::call('route:clear');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Gagal membersihkan cache sistem via panel admin: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Semua cache (data, views, config, & routes) berhasil dibersihkan');
     }
 }
