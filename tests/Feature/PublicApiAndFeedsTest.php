@@ -97,3 +97,31 @@ it('includes published pages in sitemap', function () {
         ->assertOk()
         ->assertSee('/pages/about-us', false);
 });
+
+it('serves the homepage with Link headers for agent discovery', function () {
+    $response = $this->get('/');
+
+    $response->assertOk();
+    $response->assertHeader('Link', '</.well-known/api-catalog>; rel="api-catalog", </sitemap.xml>; rel="sitemap"');
+});
+
+it('serves the well-known api catalog in linkset json format', function () {
+    $response = $this->get('/.well-known/api-catalog');
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'application/linkset+json; charset=UTF-8');
+    $response->assertJsonStructure([
+        'linkset' => [
+            '*' => [
+                'anchor',
+                'item' => [
+                    '*' => [
+                        'href',
+                        'type',
+                        'title',
+                    ]
+                ]
+            ]
+        ]
+    ]);
+});

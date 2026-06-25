@@ -16,6 +16,40 @@ require __DIR__.'/installer.php';
 Route::get('/', [FrontendController::class, 'home'])->name('home');
 Route::get('/feed.xml', [FeedController::class, 'rss'])->name('feed.rss');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
+Route::get('/.well-known/api-catalog', function () {
+    $catalog = [
+        'linkset' => [
+            [
+                'anchor' => url('/api/v1'),
+                'item' => [
+                    [
+                        'href' => url('/api/v1/posts'),
+                        'type' => 'application/json',
+                        'title' => 'Posts API Endpoint',
+                    ],
+                    [
+                        'href' => url('/api/v1/pages'),
+                        'type' => 'application/json',
+                        'title' => 'Pages API Endpoint',
+                    ],
+                    [
+                        'href' => url('/api/v1/categories'),
+                        'type' => 'application/json',
+                        'title' => 'Categories API Endpoint',
+                    ],
+                    [
+                        'href' => url('/api/v1/tags'),
+                        'type' => 'application/json',
+                        'title' => 'Tags API Endpoint',
+                    ],
+                ],
+            ],
+        ],
+    ];
+
+    return response()->json($catalog)
+        ->header('Content-Type', 'application/linkset+json; charset=UTF-8');
+})->name('api-catalog');
 
 Route::get('/preview/post/{post}', [FrontendController::class, 'previewPost'])
     ->name('preview.post')

@@ -54,10 +54,14 @@ class FrontendController extends Controller
 
         // If no template is found, use fallback
         if (! $template) {
-            return view('theme::pages.home', $data);
+            return response()
+                ->view('theme::pages.home', $data)
+                ->header('Link', '</.well-known/api-catalog>; rel="api-catalog", </sitemap.xml>; rel="sitemap"');
         }
 
-        return view($template, $data);
+        return response()
+            ->view($template, $data)
+            ->header('Link', '</.well-known/api-catalog>; rel="api-catalog", </sitemap.xml>; rel="sitemap"');
     }
 
     /**
