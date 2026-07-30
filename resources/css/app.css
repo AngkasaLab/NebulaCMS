@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 @plugin 'tailwindcss-animate';
+@plugin '@tailwindcss/typography';
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -189,5 +190,30 @@
 
     [data-slot='sidebar-content']::-webkit-scrollbar-corner {
         background: transparent;
+    }
+
+    /* Tiptap table styles */
+    .tiptap table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+
+    .tiptap table th,
+    .tiptap table td {
+        border: 1px solid var(--color-border);
+        padding: 0.5rem 0.75rem;
+        min-width: 6rem;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .tiptap table th {
+        background-color: var(--color-muted);
+        font-weight: 600;
+    }
+
+    .tiptap table p {
+        margin: 0;
     }
 }

@@ -1,34 +1,40 @@
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
-import Link from '@tiptap/extension-link';
+import { sanitizeUrl } from '@/utils/urlValidator';
 import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
+import Table from '@tiptap/extension-table';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TableRow from '@tiptap/extension-table-row';
+import TextAlign from '@tiptap/extension-text-align';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import axios from 'axios';
-import { ClipboardEvent, DragEvent, useCallback, useState } from 'react';
 import {
-    Bold,
-    Italic,
-    List,
-    ListOrdered,
-    AlignLeft,
     AlignCenter,
-    AlignRight,
     AlignJustify,
-    Link as LinkIcon,
-    Quote,
+    AlignLeft,
+    AlignRight,
+    Bold,
+    Code,
     Heading1,
     Heading2,
     Heading3,
-    Strikethrough,
-    Code,
     Image as ImageIcon,
+    Italic,
+    Link as LinkIcon,
+    List,
+    ListOrdered,
+    Quote,
+    Strikethrough,
+    Table as TableIcon,
 } from 'lucide-react';
-import { Toggle } from './ui/toggle';
-import { Separator } from './ui/separator';
-import MediaLibraryDialog from './MediaLibraryDialog';
-import LinkDialog from './LinkDialog';
-import { sanitizeUrl } from '@/utils/urlValidator';
+import { ClipboardEvent, DragEvent, useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import LinkDialog from './LinkDialog';
+import MediaLibraryDialog from './MediaLibraryDialog';
+import TableDialog from './TableDialog';
+import { Separator } from './ui/separator';
+import { Toggle } from './ui/toggle';
 
 interface RichTextEditorProps {
     content: string;
@@ -38,6 +44,7 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
     const [isMediaDialogOpen, setIsMediaDialogOpen] = useState(false);
     const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+    const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -50,12 +57,23 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
             Image.configure({
                 allowBase64: false,
             }),
+            Table,
+            TableRow,
+            TableHeader,
+            TableCell,
         ],
         content,
         onUpdate: ({ editor }) => {
             onChange(editor.getHTML());
         },
     });
+
+    const handleInsertTable = useCallback(
+        (rows: number, cols: number, withHeaderRow: boolean) => {
+            editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+        },
+        [editor],
+    );
 
     const uploadAndInsertImage = useCallback(
         async (file: File, pos?: number) => {
@@ -64,13 +82,15 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
             }
             const formData = new FormData();
             formData.append('files[]', file);
-            const response = await axios.post<
-                { id: number; url: string; name: string; variant_urls: Record<string, string> }[]
-            >(route('admin.media.store'), formData, {
-                headers: {
-                    Accept: 'application/json',
+            const response = await axios.post<{ id: number; url: string; name: string; variant_urls: Record<string, string> }[]>(
+                route('admin.media.store'),
+                formData,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
                 },
-            });
+            );
 
             const uploaded = response.data?.[0];
             if (!uploaded?.url) {
@@ -84,7 +104,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
             }
             editor.chain().focus().setImage({ src: url }).run();
         },
-        [editor]
+        [editor],
     );
 
     const handlePaste = useCallback(
@@ -94,9 +114,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                 return;
             }
 
-            const imageItem = Array.from(items).find(
-                (it) => it.kind === 'file' && it.type.startsWith('image/')
-            );
+            const imageItem = Array.from(items).find((it) => it.kind === 'file' && it.type.startsWith('image/'));
             const file = imageItem?.getAsFile();
             if (!file) {
                 return;
@@ -110,7 +128,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                 toast.error(message);
             }
         },
-        [uploadAndInsertImage]
+        [uploadAndInsertImage],
     );
 
     const handleDrop = useCallback(
@@ -135,7 +153,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                 toast.error(message);
             }
         },
-        [uploadAndInsertImage, editor]
+        [uploadAndInsertImage, editor],
     );
 
     if (!editor) {
@@ -234,6 +252,12 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
             isActive: () => false,
         },
         {
+            icon: <TableIcon className="h-4 w-4" />,
+            title: 'Table',
+            action: () => setIsTableDialogOpen(true),
+            isActive: () => false,
+        },
+        {
             icon: <Quote className="h-4 w-4" />,
             title: 'Blockquote',
             action: () => editor.chain().focus().toggleBlockquote().run(),
@@ -248,16 +272,21 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     ];
 
     return (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-hidden rounded-lg border">
             <MediaLibraryDialog
                 open={isMediaDialogOpen}
                 onOpenChange={setIsMediaDialogOpen}
                 onSelectUrl={(url) => {
-                    editor.chain().focus().setImage({ src: sanitizeUrl(url) }).run();
+                    editor
+                        .chain()
+                        .focus()
+                        .setImage({ src: sanitizeUrl(url) })
+                        .run();
                 }}
                 type="image"
                 enableUpload={true}
             />
+            <TableDialog open={isTableDialogOpen} onOpenChange={setIsTableDialogOpen} onInsert={handleInsertTable} />
             <LinkDialog
                 open={isLinkDialogOpen}
                 onOpenChange={setIsLinkDialogOpen}
@@ -269,10 +298,10 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                     editor.chain().focus().unsetLink().run();
                 }}
             />
-            <div className="border-b p-2 flex flex-wrap gap-1 items-center">
+            <div className="flex flex-wrap items-center gap-1 border-b p-2">
                 {toolbarItems.map((item, index) => {
                     if (item.type === 'separator') {
-                        return <Separator orientation="vertical" className="h-6 " key={index} />;
+                        return <Separator orientation="vertical" className="h-6" key={index} />;
                     }
 
                     return (
@@ -281,7 +310,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                             pressed={item.isActive?.() ?? false}
                             onPressedChange={() => item.action?.()}
                             title={item.title}
-                            className="h-8 w-8 p-0 data-[state=on]:bg-gray-700 data-[state=on]:text-gray-50 data-[state=off]:text-gray-400 data-[state=off]:hover:bg-gray-700 data-[state=off]:hover:text-gray-50 transition-colors rounded-md flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-gray-500"
+                            className="flex h-8 w-8 items-center justify-center rounded-md p-0 transition-colors focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 focus:outline-none data-[state=off]:text-gray-400 data-[state=off]:hover:bg-gray-700 data-[state=off]:hover:text-gray-50 data-[state=on]:bg-gray-700 data-[state=on]:text-gray-50"
                         >
                             {item.icon}
                         </Toggle>
@@ -298,7 +327,7 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
                         e.preventDefault();
                     }
                 }}
-                className="prose dark:prose-invert max-w-none p-4 min-h-[300px] focus:outline-none [&_.tiptap]:outline-none [&_.tiptap]:min-h-[300px]"
+                className="prose dark:prose-invert min-h-75 max-w-none p-4 focus:outline-none [&_.tiptap]:min-h-75 [&_.tiptap]:outline-none"
             />
         </div>
     );

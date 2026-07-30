@@ -2,11 +2,16 @@ import { useEditor, EditorContent, Editor as TiptapEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
 import axios from 'axios';
 import { useCallback, useState } from 'react';
 import { Toggle } from '@/components/ui/toggle';
 import MediaLibraryDialog from '@/components/MediaLibraryDialog';
 import LinkDialog from '@/components/LinkDialog';
+import TableDialog from '@/components/TableDialog';
 import { sanitizeUrl } from '@/utils/urlValidator';
 import { toast } from 'sonner';
 import {
@@ -19,6 +24,7 @@ import {
   Quote,
   Redo,
   Strikethrough,
+  Table as TableIcon,
   Undo,
 } from 'lucide-react';
 
@@ -31,9 +37,10 @@ interface MenuBarProps {
   editor: TiptapEditor | null;
   onOpenMedia: () => void;
   onOpenLink: () => void;
+  onOpenTable: () => void;
 }
 
-const MenuBar = ({ editor, onOpenMedia, onOpenLink }: MenuBarProps) => {
+const MenuBar = ({ editor, onOpenMedia, onOpenLink, onOpenTable }: MenuBarProps) => {
   if (!editor) {
     return null;
   }
@@ -88,6 +95,9 @@ const MenuBar = ({ editor, onOpenMedia, onOpenLink }: MenuBarProps) => {
       <Toggle size="sm" onPressedChange={onOpenMedia}>
         <ImageIcon className="h-4 w-4" />
       </Toggle>
+      <Toggle size="sm" onPressedChange={onOpenTable}>
+        <TableIcon className="h-4 w-4" />
+      </Toggle>
       <Toggle
         size="sm"
         onPressedChange={() => editor.chain().focus().undo().run()}
@@ -109,6 +119,7 @@ const MenuBar = ({ editor, onOpenMedia, onOpenLink }: MenuBarProps) => {
 export function Editor({ value, onChange }: EditorProps) {
   const [isMediaDialogOpen, setIsMediaDialogOpen] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isTableDialogOpen, setIsTableDialogOpen] = useState(false);
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -118,6 +129,10 @@ export function Editor({ value, onChange }: EditorProps) {
       Image.configure({
         allowBase64: false,
       }),
+      Table,
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: value,
     onUpdate: useCallback(
@@ -128,6 +143,10 @@ export function Editor({ value, onChange }: EditorProps) {
       [onChange]
     ),
   });
+
+  const handleInsertTable = (rows: number, cols: number, withHeaderRow: boolean) => {
+    editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+  };
 
   const uploadAndInsertImage = useCallback(
     async (file: File, pos?: number) => {
@@ -146,6 +165,7 @@ export function Editor({ value, onChange }: EditorProps) {
         }
       );
       const uploaded = response.data?.[0];
+
       if (!uploaded?.url) {
         throw new Error('Upload berhasil, tapi URL tidak tersedia');
       }
@@ -173,6 +193,11 @@ export function Editor({ value, onChange }: EditorProps) {
         type="image"
         enableUpload={true}
       />
+      <TableDialog
+        open={isTableDialogOpen}
+        onOpenChange={setIsTableDialogOpen}
+        onInsert={handleInsertTable}
+      />
       <LinkDialog
         open={isLinkDialogOpen}
         onOpenChange={setIsLinkDialogOpen}
@@ -194,6 +219,7 @@ export function Editor({ value, onChange }: EditorProps) {
         editor={editor}
         onOpenMedia={() => setIsMediaDialogOpen(true)}
         onOpenLink={() => setIsLinkDialogOpen(true)}
+        onOpenTable={() => setIsTableDialogOpen(true)}
       />
       <EditorContent
         editor={editor}
