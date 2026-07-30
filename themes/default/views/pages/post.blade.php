@@ -88,7 +88,7 @@
                                                     Read More
                                                 </a>
                                                 <small class="text-muted">
-                                                    {{ $relatedPost->published_at->diffForHumans() }}
+                                                    {{ $relatedPost->published_at?->diffForHumans() }}
                                                 </small>
                                             </div>
                                         </div>

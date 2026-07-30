@@ -22,17 +22,17 @@ class FrontendController extends Controller
     public function home()
     {
         $posts = Post::with(['category', 'tags'])
-            ->where('status', 'published')
+            ->published()
             ->latest('published_at')
             ->take(6)
             ->get();
 
         $categories = Category::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         $tags = Tag::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         // Run action before rendering home page
@@ -74,7 +74,7 @@ class FrontendController extends Controller
     public function blog(Request $request)
     {
         $posts = Post::with(['category', 'tags'])
-            ->where('status', 'published')
+            ->published()
             ->when($request->category, function ($query, $category) {
                 return $query->whereHas('category', function ($q) use ($category) {
                     $q->where('slug', $category);
@@ -98,11 +98,11 @@ class FrontendController extends Controller
             ->withQueryString();
 
         $categories = Category::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         $tags = Tag::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         // Run action before rendering blog page
@@ -157,26 +157,26 @@ class FrontendController extends Controller
     {
         $post = Post::with(['category', 'tags', 'user'])
             ->where('slug', $slug)
-            ->where('status', 'published')
+            ->published()
             ->firstOrFail();
 
         // Run action after post is found
         do_action('post_found', $post);
 
         // Get previous post
-        $previousPost = Post::where('status', 'published')
+        $previousPost = Post::published()
             ->where('published_at', '<', $post->published_at)
             ->orderBy('published_at', 'desc')
             ->first();
 
         // Get next post
-        $nextPost = Post::where('status', 'published')
+        $nextPost = Post::published()
             ->where('published_at', '>', $post->published_at)
             ->orderBy('published_at', 'asc')
             ->first();
 
         $relatedPosts = Post::with(['category', 'tags', 'user'])
-            ->where('status', 'published')
+            ->published()
             ->where('id', '!=', $post->id)
             ->where(function ($query) use ($post) {
                 return $query->where('category_id', $post->category_id)
@@ -195,12 +195,12 @@ class FrontendController extends Controller
 
         // Get categories for sidebar
         $categories = Category::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         // Get recent posts for sidebar
         $recentPosts = Post::with(['category', 'user'])
-            ->where('status', 'published')
+            ->published()
             ->where('id', '!=', $post->id)
             ->latest('published_at')
             ->take(5)
@@ -208,7 +208,7 @@ class FrontendController extends Controller
 
         // Get popular tags for sidebar
         $popularTags = Tag::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->orderBy('posts_count', 'desc')
             ->take(10)
             ->get();
@@ -362,18 +362,18 @@ class FrontendController extends Controller
         $postModel = $post;
         $postModel->setAttribute('featured_image', $postModel->featuredImage?->url);
 
-        $previousPost = Post::where('status', 'published')
+        $previousPost = Post::published()
             ->where('published_at', '<', $postModel->published_at ?? now())
             ->orderBy('published_at', 'desc')
             ->first();
 
-        $nextPost = Post::where('status', 'published')
+        $nextPost = Post::published()
             ->where('published_at', '>', $postModel->published_at ?? now())
             ->orderBy('published_at', 'asc')
             ->first();
 
         $relatedPosts = Post::with(['category', 'tags', 'user'])
-            ->where('status', 'published')
+            ->published()
             ->where('id', '!=', $postModel->id)
             ->where(function ($query) use ($postModel) {
                 return $query->where('category_id', $postModel->category_id)
@@ -388,18 +388,18 @@ class FrontendController extends Controller
             ->get();
 
         $categories = Category::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->get();
 
         $recentPosts = Post::with(['category', 'user'])
-            ->where('status', 'published')
+            ->published()
             ->where('id', '!=', $postModel->id)
             ->latest('published_at')
             ->take(5)
             ->get();
 
         $popularTags = Tag::withCount(['posts' => function ($query) {
-            $query->where('status', 'published');
+            $query->published();
         }])->orderBy('posts_count', 'desc')
             ->take(10)
             ->get();

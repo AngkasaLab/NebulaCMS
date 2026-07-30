@@ -33,7 +33,7 @@
                                         <a href="{{ route('blog.post', $post->slug) }}"
                                             class="btn btn-sm btn-outline-primary">Read More</a>
                                     </div>
-                                    <small class="text-muted">{{ $post->published_at->diffForHumans() }}</small>
+                                    <small class="text-muted">{{ $post->published_at?->diffForHumans() }}</small>
                                 </div>
                             </div>
                         </div>

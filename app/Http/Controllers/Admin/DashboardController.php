@@ -30,7 +30,7 @@ class DashboardController extends Controller
                 ->where('created_at', '<', $currentMonth)
                 ->count(),
             'total' => Post::count(),
-            'published' => Post::where('status', 'published')->count(),
+            'published' => Post::published()->count(),
             'draft' => Post::where('status', 'draft')->count(),
         ];
 

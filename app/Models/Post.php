@@ -2,16 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
-use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
+/**
+ * @property int $id
+ */
 class Post extends Model
 {
     use HasFactory;
@@ -40,7 +46,7 @@ class Post extends Model
         return LogOptions::defaults()
             ->logOnly(['title', 'slug', 'status', 'user_id', 'category_id'])
             ->logOnlyDirty()
-            ->submitEmptyLogs(false)
+            ->dontSubmitEmptyLogs()
             ->useLogName('post');
     }
 
@@ -48,7 +54,7 @@ class Post extends Model
     {
         parent::boot();
 
-        static::creating(function ($post) {
+        static::saving(function ($post) {
             $post->slug = $post->slug ?? Str::slug($post->title);
 
             if ($post->status === 'published' && ! $post->published_at) {
@@ -92,19 +98,20 @@ class Post extends Model
         return $this->featuredImage?->url;
     }
 
-    public function scopePublished($query)
+    public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published')
+            ->whereNotNull('published_at')
             ->where('published_at', '<=', now());
     }
 
-    public function scopeScheduled($query)
+    public function scopeScheduled(Builder $query): Builder
     {
         return $query->where('status', 'scheduled')
             ->where('published_at', '>', now());
     }
 
-    public function scopeDraft($query)
+    public function scopeDraft(Builder $query): Builder
     {
         return $query->where('status', 'draft');
     }
@@ -114,7 +121,7 @@ class Post extends Model
      * This wraps the single category relationship in a Collection
      * to maintain compatibility with theme code that expects multiple categories.
      *
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function getCategoriesAttribute()
     {
@@ -137,7 +144,7 @@ class Post extends Model
     public function createRevision(?int $userId = null): PostRevision
     {
         return $this->revisions()->create([
-            'user_id' => $userId ?? auth()->id(),
+            'user_id' => $userId ?? Auth::id(),
             'title' => $this->title,
             'content' => $this->content,
             'excerpt' => $this->excerpt,

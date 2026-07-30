@@ -63,7 +63,7 @@
                                             Read More
                                         </a>
                                         <small class="text-muted">
-                                            {{ $post->published_at->diffForHumans() }}
+                                            {{ $post->published_at?->diffForHumans() }}
                                         </small>
                                     </div>
                                 </div>
