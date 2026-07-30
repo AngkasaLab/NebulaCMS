@@ -57,7 +57,7 @@ class Post extends Model
         static::saving(function ($post) {
             $post->slug = $post->slug ?? Str::slug($post->title);
 
-            if ($post->status === 'published' && ! $post->published_at) {
+            if ($post->status === 'published' && (! $post->published_at || $post->published_at > now())) {
                 $post->published_at = now();
             }
         });
@@ -101,8 +101,7 @@ class Post extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published')
-            ->whereNotNull('published_at')
-            ->where('published_at', '<=', now());
+            ->whereNotNull('published_at');
     }
 
     public function scopeScheduled(Builder $query): Builder
