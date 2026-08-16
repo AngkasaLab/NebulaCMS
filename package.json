@@ -88,6 +88,6 @@
         "lightningcss-linux-x64-gnu": "^1.29.1"
     },
     "allowScripts": {
-        "esbuild@0.28.1": true
+        "esbuild@0.28.2": true
     }
 }
